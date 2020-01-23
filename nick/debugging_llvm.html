@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>ClangBuiltLinux 2020 Meetup Welcome</title>
+
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/solarized.css">
+
+    <!-- Theme used for syntax highlighting of code -->
+    <link rel="stylesheet" href="lib/css/monokai.css">
+
+    <!-- Printing and PDF exports -->
+    <script>
+      var link = document.createElement( 'link' );
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
+      document.getElementsByTagName( 'head' )[0].appendChild( link );
+    </script>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h1>LLVM debugging</h1>
+          <h4>Nick Desaulniers</h4>
+          <p>Everything I know about debugging LLVM</p>
+        </section>
+        <section>
+          <h4>How I Build LLVM</h4>
+          <pre><code class="shell" data-trim>
+$ git clone git@github.com:llvm/llvm-project.git
+$ mkdir llvm-project/llvm/build
+$ cd !$
+$ cmake .. \
+-DCMAKE_BUILD_TYPE=Release \
+-G Ninja \
+-DCMAKE_C_COMPILER=/android1/android-master/prebuilts/clang/host/linux-x86/clang-r353983c/bin/clang \
+-DCMAKE_CXX_COMPILER=/android1/android-master/prebuilts/clang/host/linux-x86/clang-r353983c/bin/clang++ \
+-DLLVM_ENABLE_LLD=ON \
+-DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" \
+-DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86" \
+-DLLVM_ENABLE_ASSERTIONS=OFF
+$ ninja
+          </pre></code>
+        </section>
+        <section>
+          <h4>-DCMAKE_BUILD_TYPE=Release</h4>
+          <p>
+            Release builds run faster than Debug. Debug needed for debug
+            symbols and some debugging features.
+          </p>
+        </section>
+        <section>
+          <h4>-G Ninja</h4>
+          <p>Ninja builds faster than GNU Make.</p>
+        </section>
+        <section>
+          <h4>-DCMAKE_C_COMPILER= -DCMAKE_CXX_COMPILER=</h4>
+          <p>Build Clang with Clang.</p>
+        </section>
+        <section>
+          <h4>-DLLVM_ENABLE_LLD=ON</h4>
+          <p>Linking Clang with LLD is way faster than BFD.</p>
+        </section>
+        <section>
+          <p>-DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt"</p>
+          <p>
+            I don't need libcxx and friends. compiler-rt has ASAN/UBSAN/MSAN
+            runtimes, but I frequently omit that, too.
+          </p>
+        </section>
+        <section>
+          <p>-DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86"</p>
+          <p>
+            Anti-pattern; Clang is distributed with all non-experimental
+            backends enabled. I turn off backends I don't need to speed up
+            builds of Clang.
+          </p>
+        </section>
+        <section>
+          <h4>-DLLVM_ENABLE_ASSERTIONS=OFF</h4>
+          <p>LLVM is full of <code>assert()</code>ions.</p>
+          <p><code>OFF == -DNDEBUG</code></p>
+          <p>
+            Turning <code>ON</code> assertions is generally faster than a DEBUG build.
+          </p>
+          <p>Good idea to start with when debugging compiler crashes.</p>
+        </section>
+        <section>
+          <h4>Architecture</h4>
+          <img src="https://docs.google.com/drawings/d/e/2PACX-1vTktg1K3dZpJwo6ppKgIr_jgfWq8N-RCZeqJPGIKedv_elwCdF5hCnrLuAyPiVoSYxXzHCHGhFG211J/pub?w=2247&amp;h=1487">
+        </section>
+        <section>
+          <h4>Example input</h4>
+          <pre><code class="C++" data-trim>
+#include &lt;stddef.h&gt;
+void foo (int* a, int x, int y) {
+  for (size_t i = 0; i < 100; ++i)
+    a[i] = x + y;
+}
+          </code></pre>
+        </section>
+        <section>
+          <h4>Debugging driver invocations</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ -### foo.cpp
+clang version 11.0.0 (git@github.com:llvm/llvm-project.git 9050d0fb593c60628f47caa122c01ea1dc7a1bf5)
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /android0/llvm-project/llvm/build/bin
+ (in-process) "/android0/llvm-project/llvm/build/bin/clang-10" "-cc1" "-triple" "x86_64-unknown-linux-gnu" "-emit-obj" "-mrelax-all" "-disable-free" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "foo.cpp" "-mrelocation-model" "static" "-mthread-model" "posix" "-mframe-pointer=all" "-fmath-errno" "-fno-rounding-math" "-masm-verbose" "-mconstructor-aliases" "-munwind-tables" "-target-cpu" "x86-64" "-dwarf-column-info" "-fno-split-dwarf-inlining" "-debugger-tuning=gdb" "-resource-dir" "/android0/llvm-project/llvm/build/lib/clang/11.0.0" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8/backward" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include" "-internal-externc-isystem" "/usr/include/x86_64-linux-gnu" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-fdebug-compilation-dir" "/tmp" "-ferror-limit" "19" "-fmessage-length" "0" "-fgnuc-version=4.2.1" "-fobjc-runtime=gcc" "-fcxx-exceptions" "-fexceptions" "-fdiagnostics-show-option" "-fcolor-diagnostics" "-faddrsig" "-o" "/tmp/foo-7c7f31.o" "-x" "c++" "foo.cpp"
+ "/usr/bin/ld" "--eh-frame-hdr" "-m" "elf_x86_64" "-dynamic-linker" "/lib64/ld-linux-x86-64.so.2" "-o" "a.out" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crt1.o" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crti.o" "/usr/lib/gcc/x86_64-linux-gnu/8/crtbegin.o" "-L/usr/lib/gcc/x86_64-linux-gnu/8" "-L/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu" "-L/usr/lib/gcc/x86_64-linux-gnu/8/../../../../lib64" "-L/lib/x86_64-linux-gnu" "-L/lib/../lib64" "-L/usr/lib/x86_64-linux-gnu" "-L/usr/lib/../lib64" "-L/usr/lib/x86_64-linux-gnu/../../lib64" "-L/usr/lib/gcc/x86_64-linux-gnu/8/../../.." "-L/android0/llvm-project/llvm/build/bin/../lib" "-L/lib" "-L/usr/lib" "/tmp/foo-7c7f31.o" "-lgcc" "--as-needed" "-lgcc_s" "--no-as-needed" "-lc" "-lgcc" "--as-needed" "-lgcc_s" "--no-as-needed" "/usr/lib/gcc/x86_64-linux-gnu/8/crtend.o" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crtn.o"
+          </code></pre>
+        </section>
+        <section>
+          <h4>Debugging driver search paths</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ -v foo.cpp
+clang version 11.0.0 (git@github.com:llvm/llvm-project.git 9050d0fb593c60628f47caa122c01ea1dc7a1bf5)
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /android0/llvm-project/llvm/build/bin
+Found candidate GCC installation: /usr/lib/gcc/i686-linux-gnu/8
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/6
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/6.5.0
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/7.4.0
+Found candidate GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+Selected GCC installation: /usr/lib/gcc/x86_64-linux-gnu/8
+Candidate multilib: .;@m64
+Candidate multilib: 32;@m32
+Candidate multilib: x32;@mx32
+Selected multilib: .;@m64
+ (in-process) "/android0/llvm-project/llvm/build/bin/clang-10" -cc1 -triple x86_64-unknown-linux-gnu -emit-obj -mrelax-all -disable-free -disable-llvm-verifier -discard-value-names -main-file-name foo.cpp -mrelocation-model static -mthread-model posix -mframe-pointer=all -fmath-errno -fno-rounding-math -masm-verbose -mconstructor-aliases -munwind-tables -target-cpu x86-64 -dwarf-column-info -fno-split-dwarf-inlining -debugger-tuning=gdb -v -resource-dir /android0/llvm-project/llvm/build/lib/clang/11.0.0 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8/backward -internal-isystem /usr/local/include -internal-isystem /android0/llvm-project/llvm/build/lib/clang/11.0.0/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -fdebug-compilation-dir /tmp -ferror-limit 19 -fmessage-length 0 -fgnuc-version=4.2.1 -fobjc-runtime=gcc -fcxx-exceptions -fexceptions -fdiagnostics-show-option -fcolor-diagnostics -faddrsig -o /tmp/foo-747b03.o -x c++ foo.cpp
+clang -cc1 version 11.0.0 based upon LLVM 11.0.0git default target x86_64-unknown-linux-gnu
+ignoring nonexistent directory "/include"
+ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8"
+#include "..." search starts here:
+#include <...> search starts here:
+ /usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8
+ /usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8
+ /usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8/backward
+ /usr/local/include
+ /android0/llvm-project/llvm/build/lib/clang/11.0.0/include
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+ "/usr/bin/ld" --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o a.out /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crt1.o /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/8/crtbegin.o -L/usr/lib/gcc/x86_64-linux-gnu/8 -L/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/8/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/lib/gcc/x86_64-linux-gnu/8/../../.. -L/android0/llvm-project/llvm/build/bin/../lib -L/lib -L/usr/lib /tmp/foo-747b03.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/8/crtend.o /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crtn.o
+          </code></pre>
+        </section>
+        <section>
+          <h4>Dumping preprocessor output</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ -E foo.cpp
+          </code></pre>
+          <pre><code class="cpp" data-trim>
+# 1 "foo.cpp"
+# 1 "&lt;built-in&gt;" 1
+# 1 "&lt;built-in&gt;" 3
+# 383 "&lt;built-in&gt;" 3
+# 1 "&lt;command line&gt;" 1
+# 1 "&lt;built-in&gt;" 2
+# 1 "foo.cpp" 2
+# 1 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 1 3
+# 35 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
+typedef long int ptrdiff_t;
+# 46 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
+typedef long unsigned int size_t;
+# 102 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
+# 1 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/__stddef_max_align_t.h" 1 3
+# 19 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/__stddef_max_align_t.h" 3
+typedef struct {
+  long long __clang_max_align_nonce1
+      __attribute__((__aligned__(__alignof__(long long))));
+  long double __clang_max_align_nonce2
+      __attribute__((__aligned__(__alignof__(long double))));
+} max_align_t;
+# 103 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 2 3
+# 2 "foo.cpp" 2
+void foo (int* a, int x, int y) {
+  for (size_t i = 0; i &lt; 100; ++i)
+    a[i] = x + y;
+}
+          </code></pre>
+        </section>
+        <section>
+          <h4>Dumping Lexer Tokens</h4>
+          <pre><code class="shell" data-trim>
+$ clang -Xclang -dump-tokens -E foo.cpp
+          </code></pre>
+          <pre><code class="nohighlight" data-trim>
+...
+          void 'void'	 [StartOfLine]	Loc=&lt;foo.cpp:2:1&gt;
+identifier 'foo'	 [LeadingSpace]	Loc=&lt;foo.cpp:2:6&gt;
+l_paren '('	 [LeadingSpace]	Loc=&lt;foo.cpp:2:10&gt;
+int 'int'		Loc=&lt;foo.cpp:2:11&gt;
+star '*'		Loc=&lt;foo.cpp:2:14&gt;
+identifier 'a'	 [LeadingSpace]	Loc=&lt;foo.cpp:2:16&gt;
+...
+          </code></pre>
+          <span class="fragment">
+            <pre><code class="shell" data-trim>
+$ clang -Xclang -help -E foo.cpp
+            </code></pre>
+            <p>Prints all the options, for example:</p>
+            <pre><code class="shell" data-trim>
+  $ clang -Xclang -emit-html -o foo.html foo.cpp
+            </code></pre>
+            <a href="foo.html">LINK</a>
+          </span>
+        </section>
+        <section>
+          <h4>Dumping AST</h4>
+          <pre><code class="shell" data-trim>
+$ clang -Xclang -dump-ast -E foo.cpp
+          </code></pre>
+          <img src="ast.png" />
+        </section>
+        <section>
+          <h4>Viewing AST</h4>
+          <pre><code class="shell" data-trim>
+$ clang -Xclang -view-ast -E foo.cpp
+$ dot /tmp/&lt;file&gt;.dot -Tpng -o foo.png
+          </code></pre>
+          <img src="foo.png" style="height: 400px"/>
+          <p>Requires <code>-DCMAKE_BUILD_TYPE=Debug</code>.</p>
+        </section>
+        <section>
+          <h4>SEMA tips</h4>
+          <ul>
+            <li class="fragment">Compile with <code>-Weverything</code>.</li>
+            <li class="fragment"><code>grep</code> for &quot;generic&quot; part of warning.</li>
+            <li class="fragment"><code>grep</code> for <code>def</code> from <code>.td</code> file.</li>
+            <li class="fragment">TODO: mika's talk</li>
+            <li class="fragment">TODO: tablegen</li>
+          </ul>
+        </section>
+        <section>
+          <h4>Dumping LLVM IR</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ foo.cpp -emit-llvm -S -o -
+          </code></pre>
+          <pre><code class="llvm" data-trim>
+; ModuleID = 'foo.cpp'
+source_filename = "foo.cpp"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+; Function Attrs: noinline nounwind optnone uwtable
+define dso_local void @_Z3fooPiii(i32* %a, i32 %x, i32 %y) #0 {
+entry:
+  %a.addr = alloca i32*, align 8
+  %x.addr = alloca i32, align 4
+  %y.addr = alloca i32, align 4
+  %i = alloca i64, align 8
+  store i32* %a, i32** %a.addr, align 8
+  store i32 %x, i32* %x.addr, align 4
+  store i32 %y, i32* %y.addr, align 4
+  store i64 0, i64* %i, align 8
+  br label %for.cond
+
+for.cond:                                         ; preds = %for.inc, %entry
+  %0 = load i64, i64* %i, align 8
+  %cmp = icmp ult i64 %0, 100
+  br i1 %cmp, label %for.body, label %for.end
+
+for.body:                                         ; preds = %for.cond
+  %1 = load i32, i32* %x.addr, align 4
+  %2 = load i32, i32* %y.addr, align 4
+  %add = add nsw i32 %1, %2
+  %3 = load i32*, i32** %a.addr, align 8
+  %4 = load i64, i64* %i, align 8
+  %arrayidx = getelementptr inbounds i32, i32* %3, i64 %4
+  store i32 %add, i32* %arrayidx, align 4
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.body
+  %5 = load i64, i64* %i, align 8
+  %inc = add i64 %5, 1
+  store i64 %inc, i64* %i, align 8
+  br label %for.cond
+
+for.end:                                          ; preds = %for.cond
+  ret void
+}
+
+attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+
+!llvm.module.flags = !{!0}
+!llvm.ident = !{!1}
+
+!0 = !{i32 1, !"wchar_size", i32 4}
+!1 = !{!"Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 9050d0fb593c60628f47caa122c01ea1dc7a1bf5)"}
+          </code></pre>
+        </section>
+
+
+
+        <section></section>
+        <section>
+          <pre><code class="" data-trim></code></pre>
+          <!-- -v, -### -E -S -c >-->
+          <!-- dump ast -->
+          <!-- dump llc arch's -->
+          <!-- binary is compiled with clang  -->
+            <!-- emit-llvm -disable opt -->
+            <!-- llvm-readelf --string-dump=.comment kernel/futex.o -->
+            <!-- creduce, llvm-extract, llvm-reduce, bugpoint -->
+          <!-- https://www.aosabook.org/images/llvm/LLVMCompiler1.png 
+            https://www.aosabook.org/en/llvm.html -->
+        </section>
+      </div>
+    </div>
+
+    <script src="js/reveal.js"></script>
+
+    <script>
+      // More info about config & dependencies:
+      // - https://github.com/hakimel/reveal.js#configuration
+      // - https://github.com/hakimel/reveal.js#dependencies
+      Reveal.initialize({
+        dependencies: [
+          { src: 'plugin/markdown/marked.js' },
+          { src: 'plugin/markdown/markdown.js' },
+          { src: 'plugin/notes/notes.js', async: true },
+          { src: 'plugin/highlight/highlight.js', async: true }
+        ],
+        history: true,
+      });
+    </script>
+  </body>
+</html>
