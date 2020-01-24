@@ -211,7 +211,7 @@ $ clang -Xclang -help -E foo.cpp
             <pre><code class="shell" data-trim>
   $ clang -Xclang -emit-html -o foo.html foo.cpp
             </code></pre>
-            <a href="foo.html">LINK</a>
+            <iframe src="foo.html"></iframe>
           </span>
         </section>
         <section>
@@ -244,6 +244,10 @@ $ dot /tmp/&lt;file&gt;.dot -Tpng -o foo.png
           <h4>Dumping LLVM IR</h4>
           <pre><code class="shell" data-trim>
 $ clang++ foo.cpp -emit-llvm -S -o -
+          </code></pre>
+          <pre><code class="shell" data-trim>
+# -emit-llvm: produce LLVM IR
+# -S: as human readable foo.ll, not binary foo.bc
           </code></pre>
           <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
@@ -297,17 +301,228 @@ attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sq
 !1 = !{!"Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 9050d0fb593c60628f47caa122c01ea1dc7a1bf5)"}
           </code></pre>
         </section>
+        <section>
+          <h4>Dumping LLVM IR</h4>
+          <ul>
+            <li>
+              If next step in debugging is <code>opt</code>, dump with
+              <br/><code>-O2 -Xclang -disable-llvm-passes</code>.
+            </li>
+            <li>
+              If next step in debugging is <code>llc</code>, dump with
+              <code>-O2</code>.
+            </li>
+            <li>
+              Dumping IR with <code>-O0</code> will add <code>optnone</code>
+              function attribute, preventing any optimizations from running.
+              You probably don't want that.
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h4>Dumping LLVM IR</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ foo.cpp -emit-llvm -S -g0 -Xclang -disable-llvm-passes -o -
+          </code></pre>
+          <pre><code class="llvm" data-trim>
+; ModuleID = 'foo.cpp'
+source_filename = "foo.cpp"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+; Function Attrs: nounwind uwtable
+define dso_local void @_Z3fooPiii(i32* %a, i32 %x, i32 %y) #0 {
+entry:
+  %a.addr = alloca i32*, align 8
+  %x.addr = alloca i32, align 4
+  %y.addr = alloca i32, align 4
+  %i = alloca i64, align 8
+  store i32* %a, i32** %a.addr, align 8, !tbaa !2
+  store i32 %x, i32* %x.addr, align 4, !tbaa !6
+  store i32 %y, i32* %y.addr, align 4, !tbaa !6
+  %0 = bitcast i64* %i to i8*
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #2
+  store i64 0, i64* %i, align 8, !tbaa !8
+  br label %for.cond
+
+for.cond:                                         ; preds = %for.inc, %entry
+  %1 = load i64, i64* %i, align 8, !tbaa !8
+  %cmp = icmp ult i64 %1, 100
+  br i1 %cmp, label %for.body, label %for.cond.cleanup
+
+for.cond.cleanup:                                 ; preds = %for.cond
+  %2 = bitcast i64* %i to i8*
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* %2) #2
+  br label %for.end
+
+for.body:                                         ; preds = %for.cond
+  %3 = load i32, i32* %x.addr, align 4, !tbaa !6
+  %4 = load i32, i32* %y.addr, align 4, !tbaa !6
+  %add = add nsw i32 %3, %4
+  %5 = load i32*, i32** %a.addr, align 8, !tbaa !2
+  %6 = load i64, i64* %i, align 8, !tbaa !8
+  %arrayidx = getelementptr inbounds i32, i32* %5, i64 %6
+  store i32 %add, i32* %arrayidx, align 4, !tbaa !6
+  br label %for.inc
+
+for.inc:                                          ; preds = %for.body
+  %7 = load i64, i64* %i, align 8, !tbaa !8
+  %inc = add i64 %7, 1
+  store i64 %inc, i64* %i, align 8, !tbaa !8
+  br label %for.cond
+
+for.end:                                          ; preds = %for.cond.cleanup
+  ret void
+}
+; Function Attrs: argmemonly nounwind willreturn
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+; Function Attrs: argmemonly nounwind willreturn
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+
+attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { argmemonly nounwind willreturn }
+attributes #2 = { nounwind }
+
+!llvm.module.flags = !{!0}
+!llvm.ident = !{!1}
+
+!0 = !{i32 1, !"wchar_size", i32 4}
+!1 = !{!"Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 8ca263577731ced4ba8b69e1d2444676eda2e2e7)"}
+!2 = !{!3, !3, i64 0}
+!3 = !{!"any pointer", !4, i64 0}
+!4 = !{!"omnipotent char", !5, i64 0}
+!5 = !{!"Simple C++ TBAA"}
+!6 = !{!7, !7, i64 0}
+!7 = !{!"int", !4, i64 0}
+!8 = !{!9, !9, i64 0}
+!9 = !{!"long", !4, i64 0}
+          </code></pre>
+        </section>
+        <section>
+          <h4>Dumping LLVM IR</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ foo.cpp -emit-llvm -S -O2 -o -
+          </code></pre>
+          <pre><code class="llvm" data-trim>
+; ModuleID = 'foo.cpp'
+source_filename = "foo.cpp"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+; Function Attrs: nofree norecurse nounwind uwtable writeonly
+define dso_local void @_Z3fooPiii(i32* nocapture %a, i32 %x, i32 %y) local_unnamed_addr #0 {
+entry:
+  %add = add nsw i32 %y, %x
+  %broadcast.splatinsert5 = insertelement <4 x i32> undef, i32 %add, i32 0
+  %broadcast.splat6 = shufflevector <4 x i32> %broadcast.splatinsert5, <4 x i32> undef, <4 x i32> zeroinitializer
+  %0 = bitcast i32* %a to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %0, align 4, !tbaa !2
+  %1 = getelementptr inbounds i32, i32* %a, i64 4
+  %2 = bitcast i32* %1 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %2, align 4, !tbaa !2
+  %3 = getelementptr inbounds i32, i32* %a, i64 8
+  %4 = bitcast i32* %3 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %4, align 4, !tbaa !2
+  %5 = getelementptr inbounds i32, i32* %a, i64 12
+  %6 = bitcast i32* %5 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %6, align 4, !tbaa !2
+  %7 = getelementptr inbounds i32, i32* %a, i64 16
+  %8 = bitcast i32* %7 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %8, align 4, !tbaa !2
+  %9 = getelementptr inbounds i32, i32* %a, i64 20
+  %10 = bitcast i32* %9 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %10, align 4, !tbaa !2
+  %11 = getelementptr inbounds i32, i32* %a, i64 24
+  %12 = bitcast i32* %11 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %12, align 4, !tbaa !2
+  %13 = getelementptr inbounds i32, i32* %a, i64 28
+  %14 = bitcast i32* %13 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %14, align 4, !tbaa !2
+  %15 = getelementptr inbounds i32, i32* %a, i64 32
+  %16 = bitcast i32* %15 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %16, align 4, !tbaa !2
+  %17 = getelementptr inbounds i32, i32* %a, i64 36
+  %18 = bitcast i32* %17 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %18, align 4, !tbaa !2
+  %19 = getelementptr inbounds i32, i32* %a, i64 40
+  %20 = bitcast i32* %19 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %20, align 4, !tbaa !2
+  %21 = getelementptr inbounds i32, i32* %a, i64 44
+  %22 = bitcast i32* %21 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %22, align 4, !tbaa !2
+  %23 = getelementptr inbounds i32, i32* %a, i64 48
+  %24 = bitcast i32* %23 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %24, align 4, !tbaa !2
+  %25 = getelementptr inbounds i32, i32* %a, i64 52
+  %26 = bitcast i32* %25 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %26, align 4, !tbaa !2
+  %27 = getelementptr inbounds i32, i32* %a, i64 56
+  %28 = bitcast i32* %27 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %28, align 4, !tbaa !2
+  %29 = getelementptr inbounds i32, i32* %a, i64 60
+  %30 = bitcast i32* %29 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %30, align 4, !tbaa !2
+  %31 = getelementptr inbounds i32, i32* %a, i64 64
+  %32 = bitcast i32* %31 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %32, align 4, !tbaa !2
+  %33 = getelementptr inbounds i32, i32* %a, i64 68
+  %34 = bitcast i32* %33 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %34, align 4, !tbaa !2
+  %35 = getelementptr inbounds i32, i32* %a, i64 72
+  %36 = bitcast i32* %35 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %36, align 4, !tbaa !2
+  %37 = getelementptr inbounds i32, i32* %a, i64 76
+  %38 = bitcast i32* %37 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %38, align 4, !tbaa !2
+  %39 = getelementptr inbounds i32, i32* %a, i64 80
+  %40 = bitcast i32* %39 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %40, align 4, !tbaa !2
+  %41 = getelementptr inbounds i32, i32* %a, i64 84
+  %42 = bitcast i32* %41 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %42, align 4, !tbaa !2
+  %43 = getelementptr inbounds i32, i32* %a, i64 88
+  %44 = bitcast i32* %43 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %44, align 4, !tbaa !2
+  %45 = getelementptr inbounds i32, i32* %a, i64 92
+  %46 = bitcast i32* %45 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %46, align 4, !tbaa !2
+  %47 = getelementptr inbounds i32, i32* %a, i64 96
+  %48 = bitcast i32* %47 to <4 x i32>*
+  store <4 x i32> %broadcast.splat6, <4 x i32>* %48, align 4, !tbaa !2
+  ret void
+}
+
+attributes #0 = { nofree norecurse nounwind uwtable writeonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+
+!llvm.module.flags = !{!0}
+!llvm.ident = !{!1}
+
+!0 = !{i32 1, !"wchar_size", i32 4}
+!1 = !{!"Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 8ca263577731ced4ba8b69e1d2444676eda2e2e7)"}
+!2 = !{!3, !3, i64 0}
+!3 = !{!"int", !4, i64 0}
+!4 = !{!"omnipotent char", !5, i64 0}
+!5 = !{!"Simple C++ TBAA"}
+          </code></pre>
+        </section>
 
 
 
-        <section></section>
+        <section>
+          <h4>Case Study in Kernel Test Case Reduction</h4>
+          <p class="fragment">
+            During development of
+            <a href="https://reviews.llvm.org/D72222#1836409">
+              -fpatchable-function-entry=M,N
+            </a>
+            Linaro's TCWG report's "There are 3 files in linux that assert fail
+            on the Implement the 'patchable-function attribute'."
+          </p>
+          <p>67c608a9695496cfc9d3fdf9d0b12b554ac6b4df</p>
+        </section>
         <section>
           <pre><code class="" data-trim></code></pre>
-          <!-- -v, -### -E -S -c >-->
-          <!-- dump ast -->
+          <!-- -S -c >-->
           <!-- dump llc arch's -->
           <!-- binary is compiled with clang  -->
-            <!-- emit-llvm -disable opt -->
             <!-- llvm-readelf --string-dump=.comment kernel/futex.o -->
             <!-- creduce, llvm-extract, llvm-reduce, bugpoint -->
           <!-- https://www.aosabook.org/images/llvm/LLVMCompiler1.png 
