@@ -100,7 +100,7 @@ $ ninja
           <pre><code class="C++" data-trim>
 #include &lt;stddef.h&gt;
 void foo (int* a, int x, int y) {
-  for (size_t i = 0; i < 100; ++i)
+  for (size_t i = 0; i &lt; 100; ++i)
     a[i] = x + y;
 }
           </code></pre>
@@ -248,6 +248,7 @@ $ clang++ foo.cpp -emit-llvm -S -o -
           <pre><code class="shell" data-trim>
 # -emit-llvm: produce LLVM IR
 # -S: as human readable foo.ll, not binary foo.bc
+# -o -: output to stdout, rather than to .ll or .bc file.
           </code></pre>
           <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
@@ -323,6 +324,7 @@ attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sq
           <h4>Dumping LLVM IR</h4>
           <pre><code class="shell" data-trim>
 $ clang++ foo.cpp -emit-llvm -S -g0 -Xclang -disable-llvm-passes -o -
+# -g0: less debug info in IR.
           </code></pre>
           <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
@@ -503,6 +505,316 @@ attributes #0 = { nofree norecurse nounwind uwtable writeonly "correctly-rounded
 !5 = !{!"Simple C++ TBAA"}
           </code></pre>
         </section>
+        <section>
+          <h4>opt</h4>
+          <pre><code class="shell" data-trim>
+$ opt -verify -S foo.ll
+$ opt -O2 -S foo.ll
+$ opt -O2 -verify-each -S foo.ll
+          </code></pre>
+          <div class="fragment">
+            <pre><code class="shell" data-trim>
+$ clang++ -emit-llvm -S -O2 -Xclang -disable-llvm-passes foo.cpp
+$ opt -O2 -S foo.ll
+            </code></pre>
+            <p>Should generally match</p>
+            <pre><code class="shell" data-trim>
+$ clang++ -emit-llvm -S -O2 foo.cpp
+            </code></pre>
+            <p>Though frontends can choose their own pass pipelines.</p>
+          </div>
+        </section>
+        <section>
+          <h4>opt</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ -emit-llvm -S -O2 -Xclang -disable-llvm-passes foo.cpp
+$ opt -licm -S foo.ll
+          </code></pre>
+          <pre><code class="c++" data-trim>
+#include &lt;stddef.h&gt;
+void foo (int* a, int x, int y) {
+  for (size_t i = 0; i &lt; 100; ++i)
+    a[i] = x + y;
+}
+          </code></pre>
+        </section>
+        <section>
+          <p>Before:</p>
+          <pre><code class="llvm" data-trim>
+for.body:                                         ; preds = %for.cond
+  %3 = load i32, i32* %x.addr, align 4, !tbaa !6
+  %4 = load i32, i32* %y.addr, align 4, !tbaa !6
+  %add = add nsw i32 %3, %4
+  %5 = load i32*, i32** %a.addr, align 8, !tbaa !2
+  %6 = load i64, i64* %i, align 8, !tbaa !8
+  %arrayidx = getelementptr inbounds i32, i32* %5, i64 %6
+  store i32 %add, i32* %arrayidx, align 4, !tbaa !6
+  br label %for.inc
+          </code></pre>
+        </section>
+        <section>
+          <p>After:</p>
+          <pre><code class="llvm" data-trim>
+for.body:                                         ; preds = %for.cond
+  %arrayidx = getelementptr inbounds i32, i32* %3, i64 %inc1
+  store i32 %add, i32* %arrayidx, align 4, !tbaa !6
+  br label %for.inc
+          </code></pre>
+        </section>
+        <section>
+          <h4>Spotting where something went wrong in opt</h4>
+          <pre><code class="shell" data-trim>
+$ opt -O2 -print-after-all -S foo.ll
+# -print-after-all doesn't print a pass if it did no modifications.
+$ opt -O2 -print-before-all -S foo.ll
+
+*** IR Dump Before Module Verifier ***
+*** IR Dump Before Instrument function entry/exit with calls to e.g. mcount() (pre inlining) ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before SROA ***
+*** IR Dump Before Early CSE ***
+*** IR Dump Before Lower 'expect' Intrinsics ***
+*** IR Dump Before Force set function attributes ***
+*** IR Dump Before Infer set function attributes ***
+*** IR Dump Before Interprocedural Sparse Conditional Constant Propagation ***
+*** IR Dump Before Called Value Propagation ***
+*** IR Dump Before Deduce and propagate attributes ***
+*** IR Dump Before Global Variable Optimizer ***
+*** IR Dump Before Promote Memory to Register ***
+*** IR Dump Before Dead Argument Elimination ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before Remove unused exception handling info ***; Function Attrs: nounwind uwtable
+*** IR Dump Before Function Integration/Inlining ***; Function Attrs: nounwind uwtable
+*** IR Dump Before Deduce function attributes ***; Function Attrs: nounwind uwtable
+*** IR Dump Before SROA ***
+*** IR Dump Before Early CSE w/ MemorySSA ***
+*** IR Dump Before Speculatively execute instructions if target has divergent branches ***
+*** IR Dump Before Jump Threading ***
+*** IR Dump Before Value Propagation ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Conditionally eliminate dead library calls ***
+*** IR Dump Before PGOMemOPSize ***
+*** IR Dump Before Tail Call Elimination ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before Reassociate expressions ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before LCSSA Verifier ***
+*** IR Dump Before Loop-Closed SSA Form Pass ***
+*** IR Dump Before Rotate Loops ***
+*** IR Dump Before Loop Invariant Code Motion ***
+*** IR Dump Before Unswitch loops ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before LCSSA Verifier ***
+*** IR Dump Before Loop-Closed SSA Form Pass ***
+*** IR Dump Before Induction Variable Simplification ***
+*** IR Dump Before Recognize loop idioms ***
+*** IR Dump Before Delete dead loops ***
+*** IR Dump Before Unroll loops ***
+*** IR Dump Before MergedLoadStoreMotion ***
+*** IR Dump Before Global Value Numbering ***
+*** IR Dump Before MemCpy Optimization ***
+*** IR Dump Before Sparse Conditional Constant Propagation ***
+*** IR Dump Before Demanded bits analysis ***
+*** IR Dump Before Bit-Tracking Dead Code Elimination ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Jump Threading ***
+*** IR Dump Before Value Propagation ***
+*** IR Dump Before Dead Store Elimination ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before LCSSA Verifier ***
+*** IR Dump Before Loop-Closed SSA Form Pass ***
+*** IR Dump Before Loop Invariant Code Motion ***
+*** IR Dump Before Aggressive Dead Code Elimination ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Remove unused exception handling info ***
+*** IR Dump Before Function Integration/Inlining ***
+*** IR Dump Before Deduce function attributes ***
+*** IR Dump Before A No-Op Barrier Pass ***
+*** IR Dump Before Eliminate Available Externally Globals ***
+*** IR Dump Before Deduce function attributes in RPO ***
+*** IR Dump Before Global Variable Optimizer ***
+*** IR Dump Before Dead Global Elimination ***
+*** IR Dump Before Float to int ***
+*** IR Dump Before Lower constant intrinsics ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before LCSSA Verifier ***
+*** IR Dump Before Loop-Closed SSA Form Pass ***
+*** IR Dump Before Rotate Loops ***
+*** IR Dump Before Loop Distribution ***
+*** IR Dump Before Demanded bits analysis ***
+*** IR Dump Before Inject TLI Mappings ***
+*** IR Dump Before Loop Vectorization ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before Loop Load Elimination ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before Demanded bits analysis ***
+*** IR Dump Before SLP Vectorizer ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before LCSSA Verifier ***
+*** IR Dump Before Loop-Closed SSA Form Pass ***
+*** IR Dump Before Unroll loops ***
+*** IR Dump Before Combine redundant instructions ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before LCSSA Verifier ***
+*** IR Dump Before Loop-Closed SSA Form Pass ***
+*** IR Dump Before Warn about non-applied transformations ***
+*** IR Dump Before Alignment from assumptions ***
+*** IR Dump Before Strip Unused Function Prototypes ***
+*** IR Dump Before Dead Global Elimination ***
+*** IR Dump Before Merge Duplicate Global Constants ***
+*** IR Dump Before Canonicalize natural loops ***
+*** IR Dump Before LCSSA Verifier ***
+*** IR Dump Before Loop-Closed SSA Form Pass ***
+*** IR Dump Before Remove redundant instructions ***
+*** IR Dump Before Hoist/decompose integer division and remainder ***
+*** IR Dump Before Simplify the CFG ***
+*** IR Dump Before Module Verifier ***
+          </code></pre>
+        </section>
+        <section>
+          <h4>Lowering with llc</h4>
+          <pre><code class="shell" data-trim>
+$ llc foo.ll # produces foo.s
+$ llc -filetype=obj foo.ll # produces foo.o
+$ llc --print-after-all foo.ll
+
+*** IR Dump After Pre-ISel Intrinsic Lowering ***
+
+*** IR Dump After Expand Atomic instructions ***
+*** IR Dump After Module Verifier ***
+*** IR Dump After Canonicalize natural loops ***
+*** IR Dump After Loop Strength Reduction ***
+*** IR Dump After Merge contiguous icmps into a memcmp ***
+*** IR Dump After Expand memcmp() to load/stores ***
+*** IR Dump After Lower Garbage Collection Instructions ***
+*** IR Dump After Shadow Stack GC Lowering ***
+*** IR Dump After Lower constant intrinsics ***
+*** IR Dump After Remove unreachable blocks from the CFG ***
+*** IR Dump After Constant Hoisting ***
+*** IR Dump After Partially inline calls to library functions ***
+*** IR Dump After Instrument function entry/exit with calls to e.g. mcount() (post inlining) ***
+*** IR Dump After Scalarize Masked Memory Intrinsics ***
+*** IR Dump After Expand reduction intrinsics ***
+*** IR Dump After Interleaved Access Pass ***
+*** IR Dump After Expand indirectbr instructions ***
+*** IR Dump After CodeGen Prepare ***
+*** IR Dump After Rewrite Symbols ***
+*** IR Dump After Exception handling preparation ***
+*** IR Dump After Safe Stack instrumentation pass ***
+*** IR Dump After Module Verifier ***
+# *** IR Dump After Finalize ISel and expand pseudo-instructions ***:
+# *** IR Dump After X86 Domain Reassignment Pass ***:
+# *** IR Dump After Early Tail Duplication ***:
+# *** IR Dump After Optimize machine instruction PHIs ***:
+# *** IR Dump After Slot index numbering ***:
+# *** IR Dump After Merge disjoint stack slots ***:
+# *** IR Dump After Local Stack Slot Allocation ***:
+# *** IR Dump After Remove dead machine instructions ***:
+# *** IR Dump After Early If-Conversion ***:
+# *** IR Dump After Machine InstCombiner ***:
+# *** IR Dump After X86 cmov Conversion ***:
+# *** IR Dump After Early Machine Loop Invariant Code Motion ***:
+# *** IR Dump After Machine Common Subexpression Elimination ***:
+# *** IR Dump After Machine code sinking ***:
+# *** IR Dump After Peephole Optimizations ***:
+# *** IR Dump After Remove dead machine instructions ***:
+# *** IR Dump After Live Range Shrink ***:
+# *** IR Dump After X86 LEA Optimize ***:
+# *** IR Dump After X86 Optimize Call Frame ***:
+# *** IR Dump After X86 Avoid Store Forwarding Blocks ***:
+# *** IR Dump After X86 speculative load hardening ***:
+# *** IR Dump After X86 EFLAGS copy lowering ***:
+# *** IR Dump After Detect Dead Lanes ***:
+# *** IR Dump After Process Implicit Definitions ***:
+# *** IR Dump After Remove unreachable machine basic blocks ***:
+# *** IR Dump After Live Variable Analysis ***:
+# *** IR Dump After Eliminate PHI nodes for register allocation ***:
+# *** IR Dump After Two-Address instruction pass ***:
+# *** IR Dump After Slot index numbering ***:
+# *** IR Dump After Live Interval Analysis ***:
+# *** IR Dump After Simple Register Coalescing ***:
+# *** IR Dump After Rename Disconnected Subregister Components ***:
+
+# *** IR Dump After Machine Instruction Scheduler ***:
+
+# *** IR Dump After Debug Variable Analysis ***:
+# *** IR Dump After Live Stack Slot Analysis ***:
+# *** IR Dump After Virtual Register Map ***:
+# *** IR Dump After Live Register Matrix ***:
+
+# *** IR Dump After Greedy Register Allocator ***:
+# *** IR Dump After Virtual Register Rewriter ***:
+
+# *** IR Dump After Stack Slot Coloring ***:
+# *** IR Dump After Machine Copy Propagation Pass ***:
+# *** IR Dump After Machine Loop Invariant Code Motion ***:
+# *** IR Dump After X86 FP Stackifier ***:
+# *** IR Dump After PostRA Machine Sink ***:
+# *** IR Dump After Shrink Wrapping analysis ***:
+# *** IR Dump After Prologue/Epilogue Insertion & Frame Finalization ***:
+# *** IR Dump After Control Flow Optimizer ***:
+# *** IR Dump After Tail Duplication ***:
+# *** IR Dump After Machine Copy Propagation Pass ***:
+# *** IR Dump After Post-RA pseudo instruction expansion pass ***:
+# *** IR Dump After X86 pseudo instruction expansion pass ***:
+# *** IR Dump After Post RA top-down list latency scheduler ***:
+# *** IR Dump After Analyze Machine Code For Garbage Collection ***:
+# *** IR Dump After Branch Probability Basic Block Placement ***:
+# *** IR Dump After Insert fentry calls ***:
+# *** IR Dump After Insert XRay ops ***:
+# *** IR Dump After Implement the 'patchable-function' attribute ***:
+# *** IR Dump After X86 Execution Dependency Fix ***:
+# *** IR Dump After BreakFalseDeps ***:
+# *** IR Dump After X86 Byte/Word Instruction Fixup ***:
+# *** IR Dump After X86 LEA Fixup ***:
+# *** IR Dump After Compressing EVEX instrs to VEX encoding when possible ***:
+# *** IR Dump After Contiguously Lay Out Funclets ***:
+# *** IR Dump After StackMap Liveness Analysis ***:
+# *** IR Dump After Live DEBUG_VALUE analysis ***:
+# *** IR Dump After Check CFA info and insert CFI instructions if needed ***:
+          </code></pre>
+        </section>
+        <section>
+          <h4>Instruction Selection (ISel)</h4>
+          <p>Before:</p>
+          <pre><code class="llvm" data-trim>
+define dso_local void @_Z3fooPiii(i32* nocapture %a, i32 %x, i32 %y) local_unnamed_addr #0 {
+entry:
+  %add = add nsw i32 %y, %x
+  %broadcast.splatinsert5 = insertelement <4 x i32> undef, i32 %add, i32 0
+  ...
+          </pre></code>
+          After:
+          <pre><code class="plaintext" data-trim>
+# *** IR Dump After Finalize ISel and expand pseudo-instructions ***:
+bb.0.entry:
+  liveins: $rdi, $esi, $edx
+  %2:gr32 = COPY $edx
+  %1:gr32 = COPY $esi
+  %0:gr64 = COPY $rdi
+  %3:gr32 = nsw ADD32rr %2:gr32(tied-def 0), %1:gr32, implicit-def dead $eflags
+  %4:vr128 = MOVDI2PDIrr killed %3:gr32
+  %5:vr128 = PSHUFDri killed %4:vr128, 0
+...
+          </pre></code>
+        </section>
+        <section>
+          <h4>Register Allocation</h4>
+          <pre><code class="plaintext" data-trim>
+0B      bb.0.entry:
+          liveins: $edx, $esi, $rdi
+80B       renamable $esi = nsw ADD32rr killed renamable $esi(tied-def 0), killed renamable $edx, implicit-def dead $eflags
+96B       renamable $xmm0 = MOVDI2PDIrr killed renamable $esi
+112B      renamable $xmm0 = PSHUFDri killed renamable $xmm0, 0
+          </pre></code>
+        </section>
 
 
 
@@ -521,7 +833,9 @@ attributes #0 = { nofree norecurse nounwind uwtable writeonly "correctly-rounded
         <section>
           <pre><code class="" data-trim></code></pre>
           <!-- -S -c >-->
+          <!-- selection dag: https://llvm.org/docs/CodeGenerator.html#target-independent-code-generation-algorithms -->
           <!-- dump llc arch's -->
+          <!-- printing llvm errs() dbg() .dump() print ostream -->
           <!-- binary is compiled with clang  -->
             <!-- llvm-readelf --string-dump=.comment kernel/futex.o -->
             <!-- creduce, llvm-extract, llvm-reduce, bugpoint -->
