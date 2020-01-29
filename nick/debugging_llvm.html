@@ -217,15 +217,15 @@ $ clang -Xclang -help -E foo.cpp
         <section>
           <h4>Dumping AST</h4>
           <pre><code class="shell" data-trim>
-$ clang -Xclang -dump-ast -E foo.cpp
+$ clang -Xclang -ast-dump -E foo.cpp
           </code></pre>
           <img src="ast.png" />
         </section>
         <section>
           <h4>Viewing AST</h4>
           <pre><code class="shell" data-trim>
-$ clang -Xclang -view-ast -E foo.cpp
-$ dot /tmp/&lt;file&gt;.dot -Tpng -o foo.png
+$ sudo apt install xdot
+$ clang++ -Xclang -ast-view -E foo.cpp
           </code></pre>
           <img src="foo.png" style="height: 400px"/>
           <p>Requires <code>-DCMAKE_BUILD_TYPE=Debug</code>.</p>
@@ -565,7 +565,7 @@ for.body:                                         ; preds = %for.cond
           <h4>Spotting where something went wrong in opt</h4>
           <pre><code class="shell" data-trim>
 $ opt -O2 -print-after-all -S foo.ll
-# -print-after-all doesn't print a pass if it did no modifications.
+# -print-after-all doesn&apos;t print a pass if it did no modifications.
 $ opt -O2 -print-before-all -S foo.ll
 
 *** IR Dump Before Module Verifier ***
@@ -814,6 +814,85 @@ bb.0.entry:
 96B       renamable $xmm0 = MOVDI2PDIrr killed renamable $esi
 112B      renamable $xmm0 = PSHUFDri killed renamable $xmm0, 0
           </pre></code>
+        </section>
+        <section>
+          <h4>Printf debugging in LLVM</h4>
+          <pre><code class="c++" data-trim>
+#include &lt;llvm/Support/raw_ostream.h&gt;
+llvm::outs() &lt;&lt; object;
+llvm::errs() &lt;&lt; object;
+
+#include &lt;string&gt;
+std::string out;
+llvm::raw_string_ostream RSO(out);
+object-&gt;print(RSO);
+llvm::outs() &lt;&lt; out.str();
+
+#include &lt;llvm/Support/Debug.h&gt;
+#define DEBUG_TYPE "foo"
+llvm::dbgs() &lt;&lt; object;
+LLVM_DEBUG(dbgs() &lt;&lt; object);
+          </code></pre>
+        </section>
+        <section>
+          <h4>Per pass debug info</h4>
+          <pre><code class="c++" data-trim>
+// llvm/lib/Transforms/Scalar/LICM.cpp
+// ...
+#include &lt;utility&gt;
+using namespace llvm;
+
+#define DEBUG_TYPE "licm"
+
+STATISTIC(NumCreatedBlocks, "Number of blocks created");
+STATISTIC(NumClonedBranches, "Number of branches cloned");
+// ...
+          </code></pre>
+        </section>
+        <section>
+          <h4>Per pass debug info</h4>
+          <pre><code class="shell" data-trim>
+$ opt -licm -debug-only=licm foo.ll -S -o -
+LICM: Using MemorySSA.
+LICM sinking instruction:   %arrayidx = getelementptr inbounds i32, i32* %5, i64 %6
+LICM hoisting to entry:   %3 = load i32, i32* %x.addr, align 4, !tbaa !6
+LICM hoisting to entry:   %4 = load i32, i32* %y.addr, align 4, !tbaa !6
+LICM hoisting to entry:   %add = add nsw i32 %1, %2
+LICM hoisting to entry:   %5 = load i32*, i32** %a.addr, align 8, !tbaa !2
+LICM: Promoting value stored to in loop:   %i = alloca i64, align 8
+; ModuleID = 'foo.ll'
+...
+          </code></pre>
+        </section>
+        <section>
+          <h4>Per pass debug info</h4>
+          <p>
+            <code>OptimizationRemark</code> objects are keyed off the same
+            <code>DEBUG_TYPE</code>.
+          </p>
+          <pre><code class="shell" data-trim>
+$ clang++ -O2 -Rpass=licm -c foo.cpp
+foo.cpp:4:5: remark: sinking getelementptr [-Rpass=licm]
+    a[i] = x + y;
+    ^
+foo.cpp:4:14: remark: hoisting add [-Rpass=licm]
+    a[i] = x + y;
+             ^
+foo.cpp:4:5: remark: sinking getelementptr [-Rpass=licm]
+    a[i] = x + y;
+    ^
+          </code></pre>
+        </section>
+        <section>
+          <h4>Attaching a debugger to LLVM</h4>
+          <pre><code class="shell" data-trim>
+$ cmake -DCMAKE_BUILD_TYPE=debug ...
+$ ninja
+          </code></pre>
+          <p>Most objects have a <code>dump()</code> method.</p>
+          <pre><code class="nohighlight" data-trim>
+(lldb) object.dump()
+          </code></pre>
         </section>
 
 
