@@ -31,69 +31,91 @@
           <p>Everything I know about debugging LLVM</p>
         </section>
         <section>
-          <h4>How I Build LLVM</h4>
+          <section>
+            <h4>Architecture - Clang</h4>
+            <img src="https://docs.google.com/drawings/d/e/2PACX-1vTktg1K3dZpJwo6ppKgIr_jgfWq8N-RCZeqJPGIKedv_elwCdF5hCnrLuAyPiVoSYxXzHCHGhFG211J/pub?w=2247&amp;h=1487" alt="Clang Front End Architecture"/>
+          </section>
+          <section>
+            <h4>Architecture - LLVM</h4>
+            <!-- TODO -->
+          </section>
+          <section>
+            <h4>LLVM IR</h4>
+            <img src="https://docs.google.com/drawings/d/e/2PACX-1vTfToF6FoA_BjRlUlG3cAZKmYF3r_CAox5Uplvo7l0-bRpGvqmJwdODirPR-FcFsl6LXLKsqCbrulFe/pub?w=380&amp;h=992" alt="LLVM IR representation"/>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h4>How I Build LLVM</h4>
+            <pre><code class="shell" data-trim>
+  $ git clone git@github.com:llvm/llvm-project.git
+  $ mkdir llvm-project/llvm/build
+  $ cd !$
+  $ cmake .. \
+  -DCMAKE_BUILD_TYPE=Release \
+  -G Ninja \
+  -DCMAKE_C_COMPILER=/android1/android-master/prebuilts/clang/host/linux-x86/clang-r353983c/bin/clang \
+  -DCMAKE_CXX_COMPILER=/android1/android-master/prebuilts/clang/host/linux-x86/clang-r353983c/bin/clang++ \
+  -DLLVM_ENABLE_LLD=ON \
+  -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" \
+  -DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86" \
+  -DLLVM_ENABLE_ASSERTIONS=OFF
+  $ ninja
+            </pre></code>
+          </section>
+          <section>
+            <h4>-DCMAKE_BUILD_TYPE=Release</h4>
+            <p>
+              Release builds run faster than Debug. Debug needed for debug
+              symbols and some debugging features.
+            </p>
+          </section>
+          <section>
+            <h4>-G Ninja</h4>
+            <p>Ninja builds faster than GNU Make.</p>
+          </section>
+          <section>
+            <h4>-DCMAKE_C_COMPILER= -DCMAKE_CXX_COMPILER=</h4>
+            <p>Build Clang with Clang.</p>
+          </section>
+          <section>
+            <h4>-DLLVM_ENABLE_LLD=ON</h4>
+            <p>Linking Clang with LLD is way faster than BFD.</p>
+          </section>
+          <section>
+            <p>-DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt"</p>
+            <p>
+              I don't need libcxx and friends. compiler-rt has ASAN/UBSAN/MSAN
+              runtimes, but I frequently omit that, too.
+            </p>
+          </section>
+          <section>
+            <p>-DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86"</p>
+            <p>
+              Anti-pattern; Clang is distributed with all non-experimental
+              backends enabled. I turn off backends I don't need to speed up
+              builds of Clang.
+            </p>
+          </section>
+          <section>
+            <h4>-DLLVM_ENABLE_ASSERTIONS=OFF</h4>
+            <p>LLVM is full of <code>assert()</code>ions.</p>
+            <p><code>OFF == -DNDEBUG</code></p>
+            <p>
+              Turning <code>ON</code> assertions is generally faster than a DEBUG build.
+            </p>
+            <p>Good idea to start with when debugging compiler crashes.</p>
+          </section>
+        </section>
+        <section>
+          <h4>Important Compiler-Generic Flags</h4>
           <pre><code class="shell" data-trim>
-$ git clone git@github.com:llvm/llvm-project.git
-$ mkdir llvm-project/llvm/build
-$ cd !$
-$ cmake .. \
--DCMAKE_BUILD_TYPE=Release \
--G Ninja \
--DCMAKE_C_COMPILER=/android1/android-master/prebuilts/clang/host/linux-x86/clang-r353983c/bin/clang \
--DCMAKE_CXX_COMPILER=/android1/android-master/prebuilts/clang/host/linux-x86/clang-r353983c/bin/clang++ \
--DLLVM_ENABLE_LLD=ON \
--DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" \
--DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86" \
--DLLVM_ENABLE_ASSERTIONS=OFF
-$ ninja
-          </pre></code>
-        </section>
-        <section>
-          <h4>-DCMAKE_BUILD_TYPE=Release</h4>
-          <p>
-            Release builds run faster than Debug. Debug needed for debug
-            symbols and some debugging features.
-          </p>
-        </section>
-        <section>
-          <h4>-G Ninja</h4>
-          <p>Ninja builds faster than GNU Make.</p>
-        </section>
-        <section>
-          <h4>-DCMAKE_C_COMPILER= -DCMAKE_CXX_COMPILER=</h4>
-          <p>Build Clang with Clang.</p>
-        </section>
-        <section>
-          <h4>-DLLVM_ENABLE_LLD=ON</h4>
-          <p>Linking Clang with LLD is way faster than BFD.</p>
-        </section>
-        <section>
-          <p>-DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt"</p>
-          <p>
-            I don't need libcxx and friends. compiler-rt has ASAN/UBSAN/MSAN
-            runtimes, but I frequently omit that, too.
-          </p>
-        </section>
-        <section>
-          <p>-DLLVM_TARGETS_TO_BUILD="AArch64;ARM;X86"</p>
-          <p>
-            Anti-pattern; Clang is distributed with all non-experimental
-            backends enabled. I turn off backends I don't need to speed up
-            builds of Clang.
-          </p>
-        </section>
-        <section>
-          <h4>-DLLVM_ENABLE_ASSERTIONS=OFF</h4>
-          <p>LLVM is full of <code>assert()</code>ions.</p>
-          <p><code>OFF == -DNDEBUG</code></p>
-          <p>
-            Turning <code>ON</code> assertions is generally faster than a DEBUG build.
-          </p>
-          <p>Good idea to start with when debugging compiler crashes.</p>
-        </section>
-        <section>
-          <h4>Architecture</h4>
-          <img src="https://docs.google.com/drawings/d/e/2PACX-1vTktg1K3dZpJwo6ppKgIr_jgfWq8N-RCZeqJPGIKedv_elwCdF5hCnrLuAyPiVoSYxXzHCHGhFG211J/pub?w=2247&amp;h=1487">
+-E: stop after preprocessing, produces .i
+-S: stop after compiling, produces .s
+-c: stop after compiling, produces .o
+-v: print commands executed and run
+-###: print commands executed, don't run
+          </code></pre>
         </section>
         <section>
           <h4>Example input</h4>
@@ -236,8 +258,16 @@ $ clang++ -Xclang -ast-view -E foo.cpp
             <li class="fragment">Compile with <code>-Weverything</code>.</li>
             <li class="fragment"><code>grep</code> for &quot;generic&quot; part of warning.</li>
             <li class="fragment"><code>grep</code> for <code>def</code> from <code>.td</code> file.</li>
-            <li class="fragment">TODO: mika's talk</li>
-            <li class="fragment">TODO: tablegen</li>
+            <li class="fragment">
+              <a href="https://www.youtube.com/watch?v=FNnKMSkaLkY">
+                My First Clang Warning - M. Baumgärtner & D. Gribenko
+              </a>
+            </li>
+            <li class="fragment">
+              <a href="https://www.youtube.com/watch?v=45gmF77JFBY">
+                Lessons in TableGen - Nicolai Hähnle
+              </a>
+            </li>
           </ul>
         </section>
         <section>
@@ -1004,6 +1034,58 @@ bb.0.entry:
           </pre></code>
         </section>
         <section>
+          <h4>Viewing assembly</h4>
+          <pre><code class="shell" data-trim>
+$ clang++ -O2 -S clang.cpp
+          </code></pre>
+          <pre><code class="assembly" data-trim>
+  .text
+  .file   "foo.cpp"
+  .globl  _Z3fooPiii              # -- Begin function _Z3fooPiii
+  .p2align        4, 0x90
+  .type   _Z3fooPiii,@function
+_Z3fooPiii:                             # @_Z3fooPiii
+  .cfi_startproc
+# %bb.0:
+  addl    %edx, %esi
+  movd    %esi, %xmm0
+  pshufd  $0, %xmm0, %xmm0        # xmm0 = xmm0[0,0,0,0]
+  movdqu  %xmm0, (%rdi)
+  movdqu  %xmm0, 16(%rdi)
+  movdqu  %xmm0, 32(%rdi)
+  movdqu  %xmm0, 48(%rdi)
+  movdqu  %xmm0, 64(%rdi)
+  movdqu  %xmm0, 80(%rdi)
+  movdqu  %xmm0, 96(%rdi)
+  movdqu  %xmm0, 112(%rdi)
+  movdqu  %xmm0, 128(%rdi)
+  movdqu  %xmm0, 144(%rdi)
+  movdqu  %xmm0, 160(%rdi)
+  movdqu  %xmm0, 176(%rdi)
+  movdqu  %xmm0, 192(%rdi)
+  movdqu  %xmm0, 208(%rdi)
+  movdqu  %xmm0, 224(%rdi)
+  movdqu  %xmm0, 240(%rdi)
+  movdqu  %xmm0, 256(%rdi)
+  movdqu  %xmm0, 272(%rdi)
+  movdqu  %xmm0, 288(%rdi)
+  movdqu  %xmm0, 304(%rdi)
+  movdqu  %xmm0, 320(%rdi)
+  movdqu  %xmm0, 336(%rdi)
+  movdqu  %xmm0, 352(%rdi)
+  movdqu  %xmm0, 368(%rdi)
+  movdqu  %xmm0, 384(%rdi)
+  retq
+.Lfunc_end0:
+  .size   _Z3fooPiii, .Lfunc_end0-_Z3fooPiii
+  .cfi_endproc
+          # -- End function
+  .ident  "Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 276a6b88898a9847d6b401b769e53fb3af6e7b78)"
+  .section        ".note.GNU-stack","",@progbits
+  .addrsig
+         </code></pre>
+        </section>
+        <section>
           <h4>Printf debugging in LLVM</h4>
           <pre><code class="c++" data-trim>
 #include &lt;llvm/Support/raw_ostream.h&gt;
@@ -1102,7 +1184,6 @@ $ ninja
           <!-- -S -c >-->
           <!-- selection dag: https://llvm.org/docs/CodeGenerator.html#target-independent-code-generation-algorithms -->
           <!-- dump llc arch's -->
-          <!-- printing llvm errs() dbg() .dump() print ostream -->
           <!-- binary is compiled with clang  -->
             <!-- llvm-readelf --string-dump=.comment kernel/futex.o -->
             <!-- creduce, llvm-extract, llvm-reduce, bugpoint -->
