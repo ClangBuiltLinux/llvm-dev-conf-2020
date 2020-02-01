@@ -32,6 +32,16 @@
         </section>
         <section>
           <section>
+            <h4>Architecure</h4>
+            <img src="https://www.aosabook.org/images/llvm/LLVMCompiler1.png" alt="llvm architecture"/>
+            <p>
+              Via:
+              <a href="https://www.aosabook.org/en/llvm.html">
+                https://www.aosabook.org/en/llvm.html
+              </a>
+            </p>
+          </section>
+          <section>
             <h4>Architecture - Clang</h4>
             <img src="https://docs.google.com/drawings/d/e/2PACX-1vTktg1K3dZpJwo6ppKgIr_jgfWq8N-RCZeqJPGIKedv_elwCdF5hCnrLuAyPiVoSYxXzHCHGhFG211J/pub?w=2247&amp;h=1487" alt="Clang Front End Architecture"/>
           </section>
@@ -96,6 +106,30 @@
               backends enabled. I turn off backends I don't need to speed up
               builds of Clang.
             </p>
+          </section>
+          <section>
+            <h4>Checking for backend support</h4>
+            <pre><code class="shell" data-trim>
+$ llc --version
+LLVM (http://llvm.org/):
+  LLVM version 11.0.0git
+  Optimized build.
+  Default target: x86_64-unknown-linux-gnu
+  Host CPU: skylake-avx512
+
+  Registered Targets:
+  aarch64    - AArch64 (little endian)
+  aarch64_32 - AArch64 (little endian ILP32)
+  aarch64_be - AArch64 (big endian)
+  arm        - ARM
+  arm64      - ARM64 (little endian)
+  arm64_32   - ARM64 (little endian ILP32)
+  armeb      - ARM (big endian)
+  thumb      - Thumb
+  thumbeb    - Thumb (big endian)
+  x86        - 32-bit X86: Pentium-Pro and above
+  x86-64     - 64-bit X86: EM64T and AMD64
+            </code></pre>
           </section>
           <section>
             <h4>-DLLVM_ENABLE_ASSERTIONS=OFF</h4>
@@ -263,10 +297,19 @@ End of search list.
  "/usr/bin/ld" --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o a.out /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crt1.o /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/8/crtbegin.o -L/usr/lib/gcc/x86_64-linux-gnu/8 -L/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/8/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/lib/gcc/x86_64-linux-gnu/8/../../.. -L/android0/llvm-project/llvm/build/bin/../lib -L/lib -L/usr/lib /tmp/foo-747b03.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/8/crtend.o /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crtn.o
             </code></pre>
           </section>
+          <section>
+            <h4>Was my binary built with clang?</h4>
+            <pre><code class="shell" data-trim>
+$ llvm-readelf --string-dump=.comment vmlinux
+String dump of section '.comment':
+[     0] Linker: LLD 11.0.0 (git@github.com:llvm/llvm-project.git 276a6b88898a9847d6b401b769e53fb3af6e7b78)
+[    64] clang version 11.0.0 (git@github.com:llvm/llvm-project.git 276a6b88898a9847d6b401b769e53fb3af6e7b78)
+            </code></pre>
+          </section>
         </section>
         <section>
           <section>
-            <h4>Important Clang-Specific Flags</h4>
+            <h4>Useful Clang-Specific Flags</h4>
           </section>
           <section>
             <h4>Dumping Lexer Tokens</h4>
@@ -1179,37 +1222,28 @@ $ ninja
 (lldb) object.dump()
           </code></pre>
         </section>
-
-
-
         <section>
-          <h4>Case Study in Kernel Test Case Reduction</h4>
-          <p class="fragment">
-            During development of
-            <a href="https://reviews.llvm.org/D72222#1836409">
-              -fpatchable-function-entry=M,N
-            </a>
-            Linaro's TCWG report's "There are 3 files in linux that assert fail
-            on the Implement the 'patchable-function attribute'."
-          </p>
-          <p>67c608a9695496cfc9d3fdf9d0b12b554ac6b4df</p>
+          <section>
+            <h4>Case Study in Kernel Test Case Reduction</h4>
+            <p class="fragment">
+              During development of
+              <a href="https://reviews.llvm.org/D72222#1836409">
+                -fpatchable-function-entry=M,N
+              </a>
+              Linaro's TCWG report's "There are 3 files in linux that assert fail
+              on the Implement the 'patchable-function attribute'."
+            </p>
+            <p>67c608a9695496cfc9d3fdf9d0b12b554ac6b4df</p>
+          </section>
         </section>
         <section>
           <pre><code class="" data-trim></code></pre>
-          <!-- -S -c >-->
           <!-- selection dag: https://llvm.org/docs/CodeGenerator.html#target-independent-code-generation-algorithms -->
-          <!-- dump llc arch's -->
-          <!-- binary is compiled with clang  -->
-            <!-- llvm-readelf --string-dump=.comment kernel/futex.o -->
             <!-- creduce, llvm-extract, llvm-reduce, bugpoint -->
-          <!-- https://www.aosabook.org/images/llvm/LLVMCompiler1.png 
-            https://www.aosabook.org/en/llvm.html -->
         </section>
       </div>
     </div>
-
     <script src="js/reveal.js"></script>
-
     <script>
       // More info about config & dependencies:
       // - https://github.com/hakimel/reveal.js#configuration
