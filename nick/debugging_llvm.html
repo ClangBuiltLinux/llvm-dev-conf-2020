@@ -108,28 +108,116 @@
           </section>
         </section>
         <section>
-          <h4>Important Compiler-Generic Flags</h4>
-          <pre><code class="shell" data-trim>
--E: stop after preprocessing, produces .i
--S: stop after compiling, produces .s
--c: stop after compiling, produces .o
+          <section>
+            <h4>Important Compiler-Generic Flags</h4>
+            <pre><code class="shell" data-trim>
+-E: stop before compiling, after preprocessing, produces .i
+-S: stop before assembling, produces .s
+-c: stop before linking, produces .o
 -v: print commands executed and run
 -###: print commands executed, don't run
-          </code></pre>
-        </section>
-        <section>
-          <h4>Example input</h4>
-          <pre><code class="C++" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Example input</h4>
+            <pre><code class="C++" data-trim>
 #include &lt;stddef.h&gt;
 void foo (int* a, int x, int y) {
   for (size_t i = 0; i &lt; 100; ++i)
     a[i] = x + y;
 }
-          </code></pre>
-        </section>
-        <section>
-          <h4>Debugging driver invocations</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Dumping preprocessor output</h4>
+            <pre><code class="shell" data-trim>
+$ clang++ -E foo.cpp
+            </code></pre>
+            <pre><code class="cpp" data-trim>
+# 1 "foo.cpp"
+# 1 "&lt;built-in&gt;" 1
+# 1 "&lt;built-in&gt;" 3
+# 383 "&lt;built-in&gt;" 3
+# 1 "&lt;command line&gt;" 1
+# 1 "&lt;built-in&gt;" 2
+# 1 "foo.cpp" 2
+# 1 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 1 3
+# 35 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
+typedef long int ptrdiff_t;
+# 46 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
+typedef long unsigned int size_t;
+# 102 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
+# 1 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/__stddef_max_align_t.h" 1 3
+# 19 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/__stddef_max_align_t.h" 3
+typedef struct {
+  long long __clang_max_align_nonce1
+      __attribute__((__aligned__(__alignof__(long long))));
+  long double __clang_max_align_nonce2
+      __attribute__((__aligned__(__alignof__(long double))));
+} max_align_t;
+# 103 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 2 3
+# 2 "foo.cpp" 2
+void foo (int* a, int x, int y) {
+  for (size_t i = 0; i &lt; 100; ++i)
+    a[i] = x + y;
+}
+            </code></pre>
+          </section>
+          <section>
+            <h4>Viewing assembly</h4>
+            <pre><code class="shell" data-trim>
+$ clang++ -O2 -S clang.cpp
+            </code></pre>
+            <pre><code class="assembly" data-trim>
+  .text
+  .file   "foo.cpp"
+  .globl  _Z3fooPiii              # -- Begin function _Z3fooPiii
+  .p2align        4, 0x90
+  .type   _Z3fooPiii,@function
+_Z3fooPiii:                             # @_Z3fooPiii
+  .cfi_startproc
+# %bb.0:
+  addl    %edx, %esi
+  movd    %esi, %xmm0
+  pshufd  $0, %xmm0, %xmm0        # xmm0 = xmm0[0,0,0,0]
+  movdqu  %xmm0, (%rdi)
+  movdqu  %xmm0, 16(%rdi)
+  movdqu  %xmm0, 32(%rdi)
+  movdqu  %xmm0, 48(%rdi)
+  movdqu  %xmm0, 64(%rdi)
+  movdqu  %xmm0, 80(%rdi)
+  movdqu  %xmm0, 96(%rdi)
+  movdqu  %xmm0, 112(%rdi)
+  movdqu  %xmm0, 128(%rdi)
+  movdqu  %xmm0, 144(%rdi)
+  movdqu  %xmm0, 160(%rdi)
+  movdqu  %xmm0, 176(%rdi)
+  movdqu  %xmm0, 192(%rdi)
+  movdqu  %xmm0, 208(%rdi)
+  movdqu  %xmm0, 224(%rdi)
+  movdqu  %xmm0, 240(%rdi)
+  movdqu  %xmm0, 256(%rdi)
+  movdqu  %xmm0, 272(%rdi)
+  movdqu  %xmm0, 288(%rdi)
+  movdqu  %xmm0, 304(%rdi)
+  movdqu  %xmm0, 320(%rdi)
+  movdqu  %xmm0, 336(%rdi)
+  movdqu  %xmm0, 352(%rdi)
+  movdqu  %xmm0, 368(%rdi)
+  movdqu  %xmm0, 384(%rdi)
+  retq
+.Lfunc_end0:
+  .size   _Z3fooPiii, .Lfunc_end0-_Z3fooPiii
+  .cfi_endproc
+          # -- End function
+  .ident  "Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 276a6b88898a9847d6b401b769e53fb3af6e7b78)"
+  .section        ".note.GNU-stack","",@progbits
+  .addrsig
+           </code></pre>
+          </section>
+          <section>
+            <h4>Debugging driver invocations</h4>
+            <pre><code class="shell" data-trim>
 $ clang++ -### foo.cpp
 clang version 11.0.0 (git@github.com:llvm/llvm-project.git 9050d0fb593c60628f47caa122c01ea1dc7a1bf5)
 Target: x86_64-unknown-linux-gnu
@@ -137,11 +225,11 @@ Thread model: posix
 InstalledDir: /android0/llvm-project/llvm/build/bin
  (in-process) "/android0/llvm-project/llvm/build/bin/clang-10" "-cc1" "-triple" "x86_64-unknown-linux-gnu" "-emit-obj" "-mrelax-all" "-disable-free" "-disable-llvm-verifier" "-discard-value-names" "-main-file-name" "foo.cpp" "-mrelocation-model" "static" "-mthread-model" "posix" "-mframe-pointer=all" "-fmath-errno" "-fno-rounding-math" "-masm-verbose" "-mconstructor-aliases" "-munwind-tables" "-target-cpu" "x86-64" "-dwarf-column-info" "-fno-split-dwarf-inlining" "-debugger-tuning=gdb" "-resource-dir" "/android0/llvm-project/llvm/build/lib/clang/11.0.0" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/x86_64-linux-gnu/c++/8" "-internal-isystem" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../include/c++/8/backward" "-internal-isystem" "/usr/local/include" "-internal-isystem" "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include" "-internal-externc-isystem" "/usr/include/x86_64-linux-gnu" "-internal-externc-isystem" "/include" "-internal-externc-isystem" "/usr/include" "-fdeprecated-macro" "-fdebug-compilation-dir" "/tmp" "-ferror-limit" "19" "-fmessage-length" "0" "-fgnuc-version=4.2.1" "-fobjc-runtime=gcc" "-fcxx-exceptions" "-fexceptions" "-fdiagnostics-show-option" "-fcolor-diagnostics" "-faddrsig" "-o" "/tmp/foo-7c7f31.o" "-x" "c++" "foo.cpp"
  "/usr/bin/ld" "--eh-frame-hdr" "-m" "elf_x86_64" "-dynamic-linker" "/lib64/ld-linux-x86-64.so.2" "-o" "a.out" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crt1.o" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crti.o" "/usr/lib/gcc/x86_64-linux-gnu/8/crtbegin.o" "-L/usr/lib/gcc/x86_64-linux-gnu/8" "-L/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu" "-L/usr/lib/gcc/x86_64-linux-gnu/8/../../../../lib64" "-L/lib/x86_64-linux-gnu" "-L/lib/../lib64" "-L/usr/lib/x86_64-linux-gnu" "-L/usr/lib/../lib64" "-L/usr/lib/x86_64-linux-gnu/../../lib64" "-L/usr/lib/gcc/x86_64-linux-gnu/8/../../.." "-L/android0/llvm-project/llvm/build/bin/../lib" "-L/lib" "-L/usr/lib" "/tmp/foo-7c7f31.o" "-lgcc" "--as-needed" "-lgcc_s" "--no-as-needed" "-lc" "-lgcc" "--as-needed" "-lgcc_s" "--no-as-needed" "/usr/lib/gcc/x86_64-linux-gnu/8/crtend.o" "/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crtn.o"
-          </code></pre>
-        </section>
-        <section>
-          <h4>Debugging driver search paths</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Debugging driver search paths</h4>
+            <pre><code class="shell" data-trim>
 $ clang++ -v foo.cpp
 clang version 11.0.0 (git@github.com:llvm/llvm-project.git 9050d0fb593c60628f47caa122c01ea1dc7a1bf5)
 Target: x86_64-unknown-linux-gnu
@@ -173,49 +261,19 @@ ignoring duplicate directory "/usr/lib/gcc/x86_64-linux-gnu/8/../../../../includ
  /usr/include
 End of search list.
  "/usr/bin/ld" --eh-frame-hdr -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -o a.out /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crt1.o /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/8/crtbegin.o -L/usr/lib/gcc/x86_64-linux-gnu/8 -L/usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/8/../../../../lib64 -L/lib/x86_64-linux-gnu -L/lib/../lib64 -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib64 -L/usr/lib/x86_64-linux-gnu/../../lib64 -L/usr/lib/gcc/x86_64-linux-gnu/8/../../.. -L/android0/llvm-project/llvm/build/bin/../lib -L/lib -L/usr/lib /tmp/foo-747b03.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/8/crtend.o /usr/lib/gcc/x86_64-linux-gnu/8/../../../x86_64-linux-gnu/crtn.o
-          </code></pre>
+            </code></pre>
+          </section>
         </section>
         <section>
-          <h4>Dumping preprocessor output</h4>
-          <pre><code class="shell" data-trim>
-$ clang++ -E foo.cpp
-          </code></pre>
-          <pre><code class="cpp" data-trim>
-# 1 "foo.cpp"
-# 1 "&lt;built-in&gt;" 1
-# 1 "&lt;built-in&gt;" 3
-# 383 "&lt;built-in&gt;" 3
-# 1 "&lt;command line&gt;" 1
-# 1 "&lt;built-in&gt;" 2
-# 1 "foo.cpp" 2
-# 1 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 1 3
-# 35 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
-typedef long int ptrdiff_t;
-# 46 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
-typedef long unsigned int size_t;
-# 102 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 3
-# 1 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/__stddef_max_align_t.h" 1 3
-# 19 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/__stddef_max_align_t.h" 3
-typedef struct {
-  long long __clang_max_align_nonce1
-      __attribute__((__aligned__(__alignof__(long long))));
-  long double __clang_max_align_nonce2
-      __attribute__((__aligned__(__alignof__(long double))));
-} max_align_t;
-# 103 "/android0/llvm-project/llvm/build/lib/clang/11.0.0/include/stddef.h" 2 3
-# 2 "foo.cpp" 2
-void foo (int* a, int x, int y) {
-  for (size_t i = 0; i &lt; 100; ++i)
-    a[i] = x + y;
-}
-          </code></pre>
-        </section>
-        <section>
-          <h4>Dumping Lexer Tokens</h4>
-          <pre><code class="shell" data-trim>
+          <section>
+            <h4>Important Clang-Specific Flags</h4>
+          </section>
+          <section>
+            <h4>Dumping Lexer Tokens</h4>
+            <pre><code class="shell" data-trim>
 $ clang -Xclang -dump-tokens -E foo.cpp
-          </code></pre>
-          <pre><code class="nohighlight" data-trim>
+            </code></pre>
+            <pre><code class="nohighlight" data-trim>
 ...
           void 'void'	 [StartOfLine]	Loc=&lt;foo.cpp:2:1&gt;
 identifier 'foo'	 [LeadingSpace]	Loc=&lt;foo.cpp:2:6&gt;
@@ -224,33 +282,34 @@ int 'int'		Loc=&lt;foo.cpp:2:11&gt;
 star '*'		Loc=&lt;foo.cpp:2:14&gt;
 identifier 'a'	 [LeadingSpace]	Loc=&lt;foo.cpp:2:16&gt;
 ...
-          </code></pre>
-          <span class="fragment">
-            <pre><code class="shell" data-trim>
+            </code></pre>
+            <span class="fragment">
+              <pre><code class="shell" data-trim>
 $ clang -Xclang -help -E foo.cpp
-            </code></pre>
-            <p>Prints all the options, for example:</p>
-            <pre><code class="shell" data-trim>
+              </code></pre>
+              <p>Prints all the options, for example:</p>
+              <pre><code class="shell" data-trim>
   $ clang -Xclang -emit-html -o foo.html foo.cpp
-            </code></pre>
-            <iframe src="foo.html"></iframe>
-          </span>
-        </section>
-        <section>
-          <h4>Dumping AST</h4>
-          <pre><code class="shell" data-trim>
+              </code></pre>
+              <iframe src="foo.html"></iframe>
+            </span>
+          </section>
+          <section>
+            <h4>Dumping AST</h4>
+            <pre><code class="shell" data-trim>
 $ clang -Xclang -ast-dump -E foo.cpp
-          </code></pre>
-          <img src="ast.png" />
-        </section>
-        <section>
-          <h4>Viewing AST</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+            <img src="ast.png" />
+          </section>
+          <section>
+            <h4>Viewing AST</h4>
+            <pre><code class="shell" data-trim>
 $ sudo apt install xdot
 $ clang++ -Xclang -ast-view -E foo.cpp
-          </code></pre>
-          <img src="foo.png" style="height: 400px"/>
-          <p>Requires <code>-DCMAKE_BUILD_TYPE=Debug</code>.</p>
+            </code></pre>
+            <img src="foo.png" style="height: 400px"/>
+            <p>Requires <code>-DCMAKE_BUILD_TYPE=Debug</code>.</p>
+          </section>
         </section>
         <section>
           <h4>SEMA tips</h4>
@@ -271,16 +330,17 @@ $ clang++ -Xclang -ast-view -E foo.cpp
           </ul>
         </section>
         <section>
-          <h4>Dumping LLVM IR</h4>
-          <pre><code class="shell" data-trim>
+          <section>
+            <h4>Dumping LLVM IR</h4>
+            <pre><code class="shell" data-trim>
 $ clang++ foo.cpp -emit-llvm -S -o -
-          </code></pre>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+            <pre><code class="shell" data-trim>
 # -emit-llvm: produce LLVM IR
 # -S: as human readable foo.ll, not binary foo.bc
 # -o -: output to stdout, rather than to .ll or .bc file.
-          </code></pre>
-          <pre><code class="llvm" data-trim>
+            </code></pre>
+            <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
 source_filename = "foo.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -330,33 +390,33 @@ attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sq
 
 !0 = !{i32 1, !"wchar_size", i32 4}
 !1 = !{!"Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 9050d0fb593c60628f47caa122c01ea1dc7a1bf5)"}
-          </code></pre>
-        </section>
-        <section>
-          <h4>Dumping LLVM IR</h4>
-          <ul>
-            <li>
-              If next step in debugging is <code>opt</code>, dump with
-              <br/><code>-O2 -Xclang -disable-llvm-passes</code>.
-            </li>
-            <li>
-              If next step in debugging is <code>llc</code>, dump with
-              <code>-O2</code>.
-            </li>
-            <li>
-              Dumping IR with <code>-O0</code> will add <code>optnone</code>
-              function attribute, preventing any optimizations from running.
-              You probably don't want that.
-            </li>
-          </ul>
-        </section>
-        <section>
-          <h4>Dumping LLVM IR</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Dumping LLVM IR</h4>
+            <ul>
+              <li>
+                If next step in debugging is <code>opt</code>, dump with
+                <br/><code>-O2 -Xclang -disable-llvm-passes</code>.
+              </li>
+              <li>
+                If next step in debugging is <code>llc</code>, dump with
+                <code>-O2</code>.
+              </li>
+              <li>
+                Dumping IR with <code>-O0</code> will add <code>optnone</code>
+                function attribute, preventing any optimizations from running.
+                You probably don't want that.
+              </li>
+            </ul>
+          </section>
+          <section>
+            <h4>Dumping LLVM IR</h4>
+            <pre><code class="shell" data-trim>
 $ clang++ foo.cpp -emit-llvm -S -g0 -Xclang -disable-llvm-passes -o -
 # -g0: less debug info in IR.
-          </code></pre>
-          <pre><code class="llvm" data-trim>
+            </code></pre>
+            <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
 source_filename = "foo.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -427,14 +487,14 @@ attributes #2 = { nounwind }
 !7 = !{!"int", !4, i64 0}
 !8 = !{!9, !9, i64 0}
 !9 = !{!"long", !4, i64 0}
-          </code></pre>
-        </section>
-        <section>
-          <h4>Dumping LLVM IR</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Dumping LLVM IR</h4>
+            <pre><code class="shell" data-trim>
 $ clang++ foo.cpp -emit-llvm -S -O2 -o -
-          </code></pre>
-          <pre><code class="llvm" data-trim>
+            </code></pre>
+            <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
 source_filename = "foo.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
@@ -533,44 +593,46 @@ attributes #0 = { nofree norecurse nounwind uwtable writeonly "correctly-rounded
 !3 = !{!"int", !4, i64 0}
 !4 = !{!"omnipotent char", !5, i64 0}
 !5 = !{!"Simple C++ TBAA"}
-          </code></pre>
+            </code></pre>
+          </section>
         </section>
         <section>
-          <h4>opt</h4>
-          <pre><code class="shell" data-trim>
+          <section>
+            <h4>Optimizing with opt</h4>
+            <pre><code class="shell" data-trim>
 $ opt -verify -S foo.ll
 $ opt -O2 -S foo.ll
 $ opt -O2 -verify-each -S foo.ll
-          </code></pre>
-          <div class="fragment">
-            <pre><code class="shell" data-trim>
+            </code></pre>
+            <div class="fragment">
+              <pre><code class="shell" data-trim>
 $ clang++ -emit-llvm -S -O2 -Xclang -disable-llvm-passes foo.cpp
 $ opt -O2 -S foo.ll
-            </code></pre>
-            <p>Should generally match</p>
-            <pre><code class="shell" data-trim>
+              </code></pre>
+              <p>Should generally match</p>
+              <pre><code class="shell" data-trim>
 $ clang++ -emit-llvm -S -O2 foo.cpp
-            </code></pre>
-            <p>Though frontends can choose their own pass pipelines.</p>
-          </div>
-        </section>
-        <section>
-          <h4>opt</h4>
-          <pre><code class="shell" data-trim>
+              </code></pre>
+              <p>Though frontends can choose their own pass pipelines.</p>
+            </div>
+          </section>
+          <section>
+            <h4>opt</h4>
+            <pre><code class="shell" data-trim>
 $ clang++ -emit-llvm -S -O2 -Xclang -disable-llvm-passes foo.cpp
 $ opt -licm -S foo.ll
-          </code></pre>
-          <pre><code class="c++" data-trim>
+            </code></pre>
+            <pre><code class="c++" data-trim>
 #include &lt;stddef.h&gt;
 void foo (int* a, int x, int y) {
   for (size_t i = 0; i &lt; 100; ++i)
     a[i] = x + y;
 }
-          </code></pre>
-        </section>
-        <section>
-          <p>Before:</p>
-          <pre><code class="llvm" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <p>Before:</p>
+            <pre><code class="llvm" data-trim>
 for.body:                                         ; preds = %for.cond
   %3 = load i32, i32* %x.addr, align 4, !tbaa !6
   %4 = load i32, i32* %y.addr, align 4, !tbaa !6
@@ -580,20 +642,20 @@ for.body:                                         ; preds = %for.cond
   %arrayidx = getelementptr inbounds i32, i32* %5, i64 %6
   store i32 %add, i32* %arrayidx, align 4, !tbaa !6
   br label %for.inc
-          </code></pre>
-        </section>
-        <section>
-          <p>After:</p>
-          <pre><code class="llvm" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <p>After:</p>
+            <pre><code class="llvm" data-trim>
 for.body:                                         ; preds = %for.cond
   %arrayidx = getelementptr inbounds i32, i32* %3, i64 %inc1
   store i32 %add, i32* %arrayidx, align 4, !tbaa !6
   br label %for.inc
-          </code></pre>
-        </section>
-        <section>
-          <h4>Spotting where something went wrong in opt</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Spotting where something went wrong in opt</h4>
+            <pre><code class="shell" data-trim>
 $ opt -O2 -print-after-all -S foo.ll
 # -print-after-all doesn&apos;t print a pass if it did no modifications.
 $ opt -O2 -print-before-all -S foo.ll
@@ -706,11 +768,13 @@ $ opt -O2 -print-before-all -S foo.ll
 *** IR Dump Before Hoist/decompose integer division and remainder ***
 *** IR Dump Before Simplify the CFG ***
 *** IR Dump Before Module Verifier ***
-          </code></pre>
+            </code></pre>
+          </section>
         </section>
         <section>
-          <h4>Lowering with llc</h4>
-          <pre><code class="shell" data-trim>
+          <section>
+            <h4>Lowering with llc</h4>
+            <pre><code class="shell" data-trim>
 $ llc foo.ll # produces foo.s
 $ llc -filetype=obj foo.ll # produces foo.o
 $ llc --print-after-all foo.ll
@@ -809,11 +873,11 @@ $ llc --print-after-all foo.ll
 # *** IR Dump After StackMap Liveness Analysis ***:
 # *** IR Dump After Live DEBUG_VALUE analysis ***:
 # *** IR Dump After Check CFA info and insert CFI instructions if needed ***:
-          </code></pre>
-        </section>
-        <section>
-          <h4>Lowering with llc</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Lowering with llc</h4>
+            <pre><code class="shell" data-trim>
 $ llc -debug-pass=Structure foo.ll
 ...
 Target Library Information
@@ -997,20 +1061,20 @@ Machine Branch Probability Analysis
       Machine Optimization Remark Emitter
       X86 Assembly Printer
       Free MachineFunction
-          </code></pre>
-        </section>
-        <section>
-          <h4>Instruction Selection (ISel)</h4>
-          <p>Before:</p>
-          <pre><code class="llvm" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Instruction Selection (ISel)</h4>
+            <p>Before:</p>
+            <pre><code class="llvm" data-trim>
 define dso_local void @_Z3fooPiii(i32* nocapture %a, i32 %x, i32 %y) local_unnamed_addr #0 {
 entry:
   %add = add nsw i32 %y, %x
   %broadcast.splatinsert5 = insertelement <4 x i32> undef, i32 %add, i32 0
   ...
-          </pre></code>
-          After:
-          <pre><code class="plaintext" data-trim>
+            </pre></code>
+            <p>After:</p>
+            <pre><code class="plaintext" data-trim>
 # *** IR Dump After Finalize ISel and expand pseudo-instructions ***:
 bb.0.entry:
   liveins: $rdi, $esi, $edx
@@ -1021,73 +1085,23 @@ bb.0.entry:
   %4:vr128 = MOVDI2PDIrr killed %3:gr32
   %5:vr128 = PSHUFDri killed %4:vr128, 0
 ...
-          </pre></code>
-        </section>
-        <section>
-          <h4>Register Allocation</h4>
-          <pre><code class="plaintext" data-trim>
+            </pre></code>
+          </section>
+          <section>
+            <h4>Register Allocation</h4>
+            <pre><code class="plaintext" data-trim>
 0B      bb.0.entry:
           liveins: $edx, $esi, $rdi
 80B       renamable $esi = nsw ADD32rr killed renamable $esi(tied-def 0), killed renamable $edx, implicit-def dead $eflags
 96B       renamable $xmm0 = MOVDI2PDIrr killed renamable $esi
 112B      renamable $xmm0 = PSHUFDri killed renamable $xmm0, 0
-          </pre></code>
+            </pre></code>
+          </section>
         </section>
         <section>
-          <h4>Viewing assembly</h4>
-          <pre><code class="shell" data-trim>
-$ clang++ -O2 -S clang.cpp
-          </code></pre>
-          <pre><code class="assembly" data-trim>
-  .text
-  .file   "foo.cpp"
-  .globl  _Z3fooPiii              # -- Begin function _Z3fooPiii
-  .p2align        4, 0x90
-  .type   _Z3fooPiii,@function
-_Z3fooPiii:                             # @_Z3fooPiii
-  .cfi_startproc
-# %bb.0:
-  addl    %edx, %esi
-  movd    %esi, %xmm0
-  pshufd  $0, %xmm0, %xmm0        # xmm0 = xmm0[0,0,0,0]
-  movdqu  %xmm0, (%rdi)
-  movdqu  %xmm0, 16(%rdi)
-  movdqu  %xmm0, 32(%rdi)
-  movdqu  %xmm0, 48(%rdi)
-  movdqu  %xmm0, 64(%rdi)
-  movdqu  %xmm0, 80(%rdi)
-  movdqu  %xmm0, 96(%rdi)
-  movdqu  %xmm0, 112(%rdi)
-  movdqu  %xmm0, 128(%rdi)
-  movdqu  %xmm0, 144(%rdi)
-  movdqu  %xmm0, 160(%rdi)
-  movdqu  %xmm0, 176(%rdi)
-  movdqu  %xmm0, 192(%rdi)
-  movdqu  %xmm0, 208(%rdi)
-  movdqu  %xmm0, 224(%rdi)
-  movdqu  %xmm0, 240(%rdi)
-  movdqu  %xmm0, 256(%rdi)
-  movdqu  %xmm0, 272(%rdi)
-  movdqu  %xmm0, 288(%rdi)
-  movdqu  %xmm0, 304(%rdi)
-  movdqu  %xmm0, 320(%rdi)
-  movdqu  %xmm0, 336(%rdi)
-  movdqu  %xmm0, 352(%rdi)
-  movdqu  %xmm0, 368(%rdi)
-  movdqu  %xmm0, 384(%rdi)
-  retq
-.Lfunc_end0:
-  .size   _Z3fooPiii, .Lfunc_end0-_Z3fooPiii
-  .cfi_endproc
-          # -- End function
-  .ident  "Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 276a6b88898a9847d6b401b769e53fb3af6e7b78)"
-  .section        ".note.GNU-stack","",@progbits
-  .addrsig
-         </code></pre>
-        </section>
-        <section>
-          <h4>Printf debugging in LLVM</h4>
-          <pre><code class="c++" data-trim>
+          <section>
+            <h4>Printf debugging in LLVM</h4>
+            <pre><code class="c++" data-trim>
 #include &lt;llvm/Support/raw_ostream.h&gt;
 llvm::outs() &lt;&lt; object;
 llvm::errs() &lt;&lt; object;
@@ -1102,11 +1116,11 @@ llvm::outs() &lt;&lt; out.str();
 #define DEBUG_TYPE "foo"
 llvm::dbgs() &lt;&lt; object;
 LLVM_DEBUG(dbgs() &lt;&lt; object);
-          </code></pre>
-        </section>
-        <section>
-          <h4>Per pass debug info</h4>
-          <pre><code class="c++" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Per pass debug info</h4>
+            <pre><code class="c++" data-trim>
 // llvm/lib/Transforms/Scalar/LICM.cpp
 // ...
 #include &lt;utility&gt;
@@ -1117,11 +1131,11 @@ using namespace llvm;
 STATISTIC(NumCreatedBlocks, "Number of blocks created");
 STATISTIC(NumClonedBranches, "Number of branches cloned");
 // ...
-          </code></pre>
-        </section>
-        <section>
-          <h4>Per pass debug info</h4>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Per pass debug info</h4>
+            <pre><code class="shell" data-trim>
 $ opt -licm -debug-only=licm foo.ll -S -o -
 LICM: Using MemorySSA.
 LICM sinking instruction:   %arrayidx = getelementptr inbounds i32, i32* %5, i64 %6
@@ -1132,15 +1146,15 @@ LICM hoisting to entry:   %5 = load i32*, i32** %a.addr, align 8, !tbaa !2
 LICM: Promoting value stored to in loop:   %i = alloca i64, align 8
 ; ModuleID = 'foo.ll'
 ...
-          </code></pre>
-        </section>
-        <section>
-          <h4>Per pass debug info</h4>
-          <p>
-            <code>OptimizationRemark</code> objects are keyed off the same
-            <code>DEBUG_TYPE</code>.
-          </p>
-          <pre><code class="shell" data-trim>
+            </code></pre>
+          </section>
+          <section>
+            <h4>Per pass debug info</h4>
+            <p>
+              <code>OptimizationRemark</code> objects are keyed off the same
+              <code>DEBUG_TYPE</code>.
+            </p>
+            <pre><code class="shell" data-trim>
 $ clang++ -O2 -Rpass=licm -c foo.cpp
 foo.cpp:4:5: remark: sinking getelementptr [-Rpass=licm]
     a[i] = x + y;
@@ -1151,7 +1165,8 @@ foo.cpp:4:14: remark: hoisting add [-Rpass=licm]
 foo.cpp:4:5: remark: sinking getelementptr [-Rpass=licm]
     a[i] = x + y;
     ^
-          </code></pre>
+            </code></pre>
+          </section>
         </section>
         <section>
           <h4>Attaching a debugger to LLVM</h4>
