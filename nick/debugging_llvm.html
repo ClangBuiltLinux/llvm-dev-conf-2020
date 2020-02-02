@@ -1225,7 +1225,7 @@ $ ninja
         <section>
           <section>
             <h4>Case Study in Kernel Test Case Reduction</h4>
-            <p class="fragment">
+            <p>
               During development of
               <a href="https://reviews.llvm.org/D72222#1836409">
                 -fpatchable-function-entry=M,N
@@ -1233,13 +1233,185 @@ $ ninja
               Linaro's TCWG report's "There are 3 files in linux that assert fail
               on the Implement the 'patchable-function attribute'."
             </p>
-            <p>67c608a9695496cfc9d3fdf9d0b12b554ac6b4df</p>
+            <p>llvm-project: 67c608a9695496cfc9d3fdf9d0b12b554ac6b4df</p>
+            <p>linux: ccaaaf6fe5a5e1fffca5cca0f3fc4ec84d7ae752</p>
+          </section>
+          <section>
+            <pre><code class="shell" data-trim>
+$ ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make CC=clang \
+  -j71 allyesconfig
+$ ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make CC=clang \
+  -j71 mm/kasan/quarantine.o
+            </code></pre>
+            <script src="https://gist.github.com/nickdesaulniers/4f7965c741361b3dfd2df5ea6a8ff39b.js"></script>
+          </section>
+          <section>
+            <ol>
+              <li>Isolate compiler invocation</li>
+              <li>Confirm compile invocation</li>
+              <li>Create reproducer script</li>
+              <li>Generate preprocessed reproducer</li>
+              <li>Creduce it</li>
+              <li>Dump LLVM IR</li>
+              <li>llvm-reduce</li>
+            </ol>
+          </section>
+          <section>
+              <h4>Isolate compiler invocation</h4>
+              <pre><code class="shell" data-trim>
+$ ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make CC=clang \
+  -j71 mm/kasan/quarantine.o \
+  V=1
+              </code></pre>
+              <p>Also printed in the stack trace.</p>
+          </section>
+          <section>
+            <h4>Confirm compile invocation</h4>
+            <pre><code class="shell" data-trim>
+$ clang -Wp,-MD,mm/kasan/.quarantine.o.d -nostdinc -isystem /android0/llvm-project/llvm/build/lib/clang/11.0.0/include -I./arch/arm64/include -I./arch/arm64/include/generated -I./include -I./arch/arm64/include/uapi -I./arch/arm64/include/generated/uapi -I./include/uapi -I./include/generated/uapi -include ./include/linux/kconfig.h -include ./include/linux/compiler_types.h -D__KERNEL__ -mlittle-endian -DCC_USING_PATCHABLE_FUNCTION_ENTRY -DKASAN_SHADOW_SCALE_SHIFT=3 -Qunused-arguments -Wall -Wundef -Werror=strict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fshort-wchar -fno-PIE -Werror=implicit-function-declaration -Werror=implicit-int -Wno-format-security -std=gnu89 --target=aarch64-linux-gnu --prefix=/usr/bin/ --gcc-toolchain=/usr -no-integrated-as -Werror=unknown-warning-option -mgeneral-regs-only -DCONFIG_CC_HAS_K_CONSTRAINT=1 -fno-asynchronous-unwind-tables -DKASAN_SHADOW_SCALE_SHIFT=3 -fno-delete-null-pointer-checks -Wno-address-of-packed-member -O2 -Wframe-larger-than=2048 -fstack-protector-strong -Wno-format-invalid-specifier -Wno-gnu -Wno-tautological-compare -mno-global-merge -Wno-unused-const-variable -fno-omit-frame-pointer -fno-optimize-sibling-calls -ftrivial-auto-var-init=pattern -fpatchable-function-entry=2 -Wdeclaration-after-statement -Wvla -Wno-pointer-sign -fno-strict-overflow -fno-merge-all-constants -fno-stack-check -Werror=date-time -Werror=incompatible-pointer-types -fmacro-prefix-map=./= -Wno-initializer-overrides -Wno-format -Wno-sign-compare -Wno-format-zero-length -fno-builtin -DKBUILD_MODFILE="mm/kasan/quarantine" -DKBUILD_BASENAME="quarantine" -DKBUILD_MODNAME="quarantine" -c -o mm/kasan/quarantine.o mm/kasan/quarantine.c
+            </code></pre>
+          </section>
+          <section>
+            <h4>Create reproducer script</h4>
+            <pre><code class="shell" data-trim>
+#!/bin/bash
+OUT=$(&lt;compiler invocation&gt; 2&gt;&amp;1)
+echo $OUT | grep "PatchableFunction::runOnMachineFunction"
+            </code></pre>
+            <ul>
+              <li>Writing reproucers a bit of an art.</li>
+              <li>Need to be specific for stack traces.</li>
+              <li>
+                Repro needs to be directory independent, else creduce will
+                fail.
+              </li>
+              <li><code>-I</code> flags generally are relative.</li>
+              <li>Fix via preprocessing.</li>
+              <li>May need to redirect output <code>2&gt;&amp;1</code>.</li>
+              <li>Return code needs to be 0 if interesting.</li>
+            </ul>
+          </section>
+          <section>
+            <h4>Generate preprocessed reproducer</h4>
+            <ul>
+              <li>
+                Replace <code>-c -o foo.o</code> with <code>-E -o foo.i</code>
+                in reproducer script.
+              </li>
+              <li>Rerun to get <code>.i</code>.</li>
+              <li>
+                Replace <code>-E -o foo.i foo.c</code> with
+                <code>-c foo.i</code> in reproducer script.
+              </li>
+            </p>
+            <pre><code class="shell" data-trim>
+$ wc -l mm/kasan/quarantine.c
+329 mm/kasan/quarantine.c
+$ wc -l quarantine.i
+53444 quarantine.i
+            </code></pre>
+          </section>
+          <section>
+            <h4>Creduce it</h4>
+            <pre><code class="shell" data-trim>
+$ creduce --n 71 ./repo2.sh quarantine.i
+$ wc -l quarantine.i
+5 quarantine.i
+            </code></pre>
+            <pre><code class="c" data-trim>
+a() {
+  int b;
+  while (b);
+}
+            </code></pre>
+          </section>
+          <section>
+            <h4>Minimize command line flags</h4>
+            <pre><code class="shell" data-trim>
+# From:
+$ clang -Wp,-MD,mm/kasan/.quarantine.o.d -nostdinc -isystem /android0/llvm-project/llvm/build/lib/clang/11.0.0/include -I./arch/arm64/include -I./arch/arm64/include/generated -I./include -I./arch/arm64/include/uapi -I./arch/arm64/include/generated/uapi -I./include/uapi -I./include/generated/uapi -include ./include/linux/kconfig.h -include ./include/linux/compiler_types.h -D__KERNEL__ -mlittle-endian -DCC_USING_PATCHABLE_FUNCTION_ENTRY -DKASAN_SHADOW_SCALE_SHIFT=3 -Qunused-arguments -Wall -Wundef -Werror=strict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fshort-wchar -fno-PIE -Werror=implicit-function-declaration -Werror=implicit-int -Wno-format-security -std=gnu89 --target=aarch64-linux-gnu --prefix=/usr/bin/ --gcc-toolchain=/usr -no-integrated-as -Werror=unknown-warning-option -mgeneral-regs-only -DCONFIG_CC_HAS_K_CONSTRAINT=1 -fno-asynchronous-unwind-tables -DKASAN_SHADOW_SCALE_SHIFT=3 -fno-delete-null-pointer-checks -Wno-address-of-packed-member -O2 -Wframe-larger-than=2048 -fstack-protector-strong -Wno-format-invalid-specifier -Wno-gnu -Wno-tautological-compare -mno-global-merge -Wno-unused-const-variable -fno-omit-frame-pointer -fno-optimize-sibling-calls -ftrivial-auto-var-init=pattern -fpatchable-function-entry=2 -Wdeclaration-after-statement -Wvla -Wno-pointer-sign -fno-strict-overflow -fno-merge-all-constants -fno-stack-check -Werror=date-time -Werror=incompatible-pointer-types -fmacro-prefix-map=./= -Wno-initializer-overrides -Wno-format -Wno-sign-compare -Wno-format-zero-length -fno-builtin -DKBUILD_MODFILE="mm/kasan/quarantine" -DKBUILD_BASENAME="quarantine" -DKBUILD_MODNAME="quarantine" -c quarantine.i
+# To:
+$ clang -O2 -ftrivial-auto-var-init=pattern -fpatchable-function-entry=2 -c quarantine.i
+            </code></pre>
+          </section>
+          <section>
+            <h4>Dump LLVM IR</h4>
+            <pre><code class="shell" data-trim>
+$ clang -O2 -ftrivial-auto-var-init=pattern -fpatchable-function-entry=2 \
+  -S -emit-llvm quarantine.i
+$ llc -O2 quarantine.ll
+# crashes in same frame
+$ wc -l quarantine.ll
+20 quarantine.ll
+            </code></pre>
+          </section>
+          <section>
+            <h4>llvm-reduce</h4>
+            <pre><code class="shell" data-trim>
+$ llvm-reduce --test repo4.sh quarantine.ll
+$ wc -l reduced.ll
+15 reduced.ll
+            </code></pre>
+          </section>
+          <section>
+            <pre><code class="llvm" data-trim>
+; ModuleID = 'quarantine.ll'
+source_filename = "quarantine.i"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+; Function Attrs: norecurse noreturn nounwind readnone uwtable
+define dso_local i32 @a() local_unnamed_addr #0 {
+entry:
+  ret void
+}
+
+attributes #0 = { norecurse noreturn nounwind readnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="none" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "patchable-function-entry"="2" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"wchar_size", i32 4}
+            </code></pre>
+          </section>
+          <section>
+            <h4>Bugpoint</h4>
+            <ul>
+              <li>Prefer <code>llvm-reduce</code> to bugpoint.</li>
+              <li><a href="http://blog.llvm.org/2015/11/reduce-your-testcases-with-bugpoint-and.html">
+                Reduce Your Testcases with Bugpoint and Custom Scripts
+              </a></li>
+              <li>Works well for crashes.</li>
+              <li>
+                Considers non-zero return code interesting, unlike creduce,
+                llvm-reduce!!!
+              </li>
+            </ul>
+          </section>
+          <section>
+            <h4>Bugpoint</h4>
+            <pre><code class="shell" data-trim>
+$ bugpoint -compile-custom -compile-command=./repro5.sh quarantine.ll
+$ llvm-dis bugpoint-reduced-simplified.bc
+            </code></pre>
+            <pre><code class="llvm" data-trim>
+; ModuleID = 'bugpoint-reduced-simplified.bc'
+source_filename = "quarantine.i"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+define dso_local void @a() local_unnamed_addr #0 {
+entry:
+  unreachable
+}
+
+attributes #0 = { "patchable-function-entry"="2" }
+
+!llvm.ident = !{!0}
+
+!0 = !{!"Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 67c608a9695496cfc9d3fdf9d0b12b554ac6b4df)"}
+            </code></pre>
           </section>
         </section>
         <section>
-          <pre><code class="" data-trim></code></pre>
-          <!-- selection dag: https://llvm.org/docs/CodeGenerator.html#target-independent-code-generation-algorithms -->
-            <!-- creduce, llvm-extract, llvm-reduce, bugpoint -->
+          <h2>Thanks</h2>
+          <!-- -opt-bisect-limit=31 -->
         </section>
       </div>
     </div>
