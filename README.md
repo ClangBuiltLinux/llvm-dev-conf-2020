@@ -5,3 +5,4 @@
 - [Linker Relocation](https://github.com/ClangBuiltLinux/CBL-meetup-2020-slides/blob/master/peter/LinkerRelocation.pdf)
 - [Applying Clang Thread Safety Analysis to the Linux Kernel](https://clangbuiltlinux.github.io/CBL-meetup-2020-slides/lukas/tsa.pdf)
 - [Debugging LLVM](https://clangbuiltlinux.github.io/CBL-meetup-2020-slides/nick/debugging_llvm.html)
+- [Fighting Uninitialized Memory in the Kernel](https://clangbuiltlinux.github.io/CBL-meetup-2020-slides/glider/Fighting_uninitialized_memory_@_CBL_Meetup_2020.pdf)
