@@ -48,15 +48,15 @@
             </a>
           </section>
           <section>
-            <h4>Architecture - LLVM</h4>
-            <a href="https://docs.google.com/drawings/d/e/2PACX-1vR1hbUX6hHyXdIQXA-GvSN1YON7clmtuX4YUaMXKP1PdSYCTgLfXbfat8yYp-zPNpzYaOPEY3YjOnmY/pub?w=1809&amp;h=1737">
-              <img src="https://docs.google.com/drawings/d/e/2PACX-1vR1hbUX6hHyXdIQXA-GvSN1YON7clmtuX4YUaMXKP1PdSYCTgLfXbfat8yYp-zPNpzYaOPEY3YjOnmY/pub?w=626&amp;h=298" alt="LLVM Architecture"/>
-            </a>
-          </section>
-          <section>
             <h4>LLVM IR</h4>
             <a href="https://docs.google.com/drawings/d/e/2PACX-1vTfToF6FoA_BjRlUlG3cAZKmYF3r_CAox5Uplvo7l0-bRpGvqmJwdODirPR-FcFsl6LXLKsqCbrulFe/pub?w=1141&amp;h=2977">
               <img src="https://docs.google.com/drawings/d/e/2PACX-1vTfToF6FoA_BjRlUlG3cAZKmYF3r_CAox5Uplvo7l0-bRpGvqmJwdODirPR-FcFsl6LXLKsqCbrulFe/pub?w=380&amp;h=992" alt="LLVM IR representation"/>
+            </a>
+          </section>
+          <section>
+            <h4>Architecture - LLVM</h4>
+            <a href="https://docs.google.com/drawings/d/e/2PACX-1vR1hbUX6hHyXdIQXA-GvSN1YON7clmtuX4YUaMXKP1PdSYCTgLfXbfat8yYp-zPNpzYaOPEY3YjOnmY/pub?w=1809&amp;h=1737">
+              <img src="https://docs.google.com/drawings/d/e/2PACX-1vR1hbUX6hHyXdIQXA-GvSN1YON7clmtuX4YUaMXKP1PdSYCTgLfXbfat8yYp-zPNpzYaOPEY3YjOnmY/pub?w=626&amp;h=298" alt="LLVM Architecture"/>
             </a>
           </section>
         </section>
@@ -146,6 +146,15 @@ LLVM (http://llvm.org/):
             </p>
             <p>Good idea to start with when debugging compiler crashes.</p>
           </section>
+          <section>
+            <pre><code class="shell" data-trim>
+$ ninja clang
+            </code></pre>
+            <p>
+              For edit/compile/debug cycle, don't rebuild all of LLVM if you
+              don't need to!
+            </p>
+          </section>
         </section>
         <section>
           <section>
@@ -156,6 +165,7 @@ LLVM (http://llvm.org/):
 -c: stop before linking, produces .o
 -v: print commands executed and run
 -###: print commands executed, don't run
+-o -: print to stdout rather than write output to file
             </code></pre>
           </section>
           <section>
@@ -361,33 +371,18 @@ $ clang++ -Xclang -ast-view -E foo.cpp
           </section>
         </section>
         <section>
-          <h4>SEMA tips</h4>
-          <ul>
-            <li class="fragment">Compile with <code>-Weverything</code>.</li>
-            <li class="fragment"><code>grep</code> for &quot;generic&quot; part of warning.</li>
-            <li class="fragment"><code>grep</code> for <code>def</code> from <code>.td</code> file.</li>
-            <li class="fragment">
-              <a href="https://www.youtube.com/watch?v=FNnKMSkaLkY">
-                My First Clang Warning - M. Baumgärtner & D. Gribenko
-              </a>
-            </li>
-            <li class="fragment">
-              <a href="https://www.youtube.com/watch?v=45gmF77JFBY">
-                Lessons in TableGen - Nicolai Hähnle
-              </a>
-            </li>
-          </ul>
-        </section>
-        <section>
           <section>
             <h4>Dumping LLVM IR</h4>
             <pre><code class="shell" data-trim>
-$ clang++ foo.cpp -emit-llvm -S -o -
+$ clang++ foo.cpp -emit-llvm -S -o - -fno-discard-value-names -g0
             </code></pre>
             <pre><code class="shell" data-trim>
 # -emit-llvm: produce LLVM IR
 # -S: as human readable foo.ll, not binary foo.bc
 # -o -: output to stdout, rather than to .ll or .bc file.
+# -fno-discard-value-names:
+  identifiers from source rather than numbers.
+# -g0: less debug info in IR.
             </code></pre>
             <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
@@ -462,8 +457,7 @@ attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sq
           <section>
             <h4>Dumping LLVM IR</h4>
             <pre><code class="shell" data-trim>
-$ clang++ foo.cpp -emit-llvm -S -g0 -Xclang -disable-llvm-passes -o -
-# -g0: less debug info in IR.
+$ clang++ foo.cpp -emit-llvm -S -Xclang -disable-llvm-passes
             </code></pre>
             <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
@@ -541,7 +535,7 @@ attributes #2 = { nounwind }
           <section>
             <h4>Dumping LLVM IR</h4>
             <pre><code class="shell" data-trim>
-$ clang++ foo.cpp -emit-llvm -S -O2 -o -
+$ clang++ foo.cpp -emit-llvm -S -O2
             </code></pre>
             <pre><code class="llvm" data-trim>
 ; ModuleID = 'foo.cpp'
@@ -1121,7 +1115,7 @@ entry:
   %add = add nsw i32 %y, %x
   %broadcast.splatinsert5 = insertelement <4 x i32> undef, i32 %add, i32 0
   ...
-            </pre></code>
+            </code></pre>
             <p>After:</p>
             <pre><code class="plaintext" data-trim>
 # *** IR Dump After Finalize ISel and expand pseudo-instructions ***:
@@ -1134,7 +1128,7 @@ bb.0.entry:
   %4:vr128 = MOVDI2PDIrr killed %3:gr32
   %5:vr128 = PSHUFDri killed %4:vr128, 0
 ...
-            </pre></code>
+            </code></pre>
           </section>
           <section>
             <h4>Register Allocation</h4>
@@ -1144,7 +1138,7 @@ bb.0.entry:
 80B       renamable $esi = nsw ADD32rr killed renamable $esi(tied-def 0), killed renamable $edx, implicit-def dead $eflags
 96B       renamable $xmm0 = MOVDI2PDIrr killed renamable $esi
 112B      renamable $xmm0 = PSHUFDri killed renamable $xmm0, 0
-            </pre></code>
+            </code></pre>
           </section>
         </section>
         <section>
@@ -1155,16 +1149,13 @@ bb.0.entry:
 llvm::outs() &lt;&lt; object;
 llvm::errs() &lt;&lt; object;
 
-#include &lt;string&gt;
-std::string out;
-llvm::raw_string_ostream RSO(out);
-object-&gt;print(RSO);
-llvm::outs() &lt;&lt; out.str();
+object-&gt;print(llvm::errs());
+
+object-&gt;dump();
 
 #include &lt;llvm/Support/Debug.h&gt;
 #define DEBUG_TYPE "foo"
-llvm::dbgs() &lt;&lt; object;
-LLVM_DEBUG(dbgs() &lt;&lt; object);
+LLVM_DEBUG(llvm::dbgs() &lt;&lt; object);
             </code></pre>
           </section>
           <section>
@@ -1216,6 +1207,28 @@ foo.cpp:4:5: remark: sinking getelementptr [-Rpass=licm]
     ^
             </code></pre>
           </section>
+          <section>
+            <h4>Other useful flags for opt/llc</h4>
+            <ul>
+              <li><code>-print-after-all</code></li>
+              <li><code>-print-after=</code></li>
+              <li><code>-print-before-all</code></li>
+              <li><code>-print-before=</code></li>
+              <li><code>-stop-after=</code></li>
+              <li><code>-print-module-scope</code></li>
+              <li><code>-debug-pass=Arguments</code></li>
+            </ul>
+            <p>
+              You can pass these to <code>clang</code> with <code>-mllvm</code>
+              prefixed.
+            </p>
+          </section>
+          <section>
+            <h4>opt vs llc</h4>
+            <p>While opt passes generally can be run in differing order, llc
+            passes that operate on MIR generally cannot.</p>
+            <p><code>-print-before=</code> is your friend for MIR tests.</p>
+          </section>
         </section>
         <section>
           <h4>Attaching a debugger to LLVM</h4>
@@ -1227,6 +1240,74 @@ $ ninja
           <pre><code class="nohighlight" data-trim>
 (lldb) object.dump()
           </code></pre>
+          <p class="fragment">
+            Personally, I find relinking a Release build with printf's faster. ¯\_(ツ)_/¯
+          </p>
+        </section>
+        <section>
+          <section>
+            <h4>TableGen</h4>
+            <p>
+              Template like language for generating C++ code fed into the build
+              of LLVM itself.
+            </p>
+            <p>.td files become .inc or .def files.</p>
+            <ul>
+              <li>
+                <a href="https://www.youtube.com/watch?v=45gmF77JFBY">
+                  Lessons in TableGen - Nicolai Hähnle
+                </a>
+              </li>
+              <li>
+                <a href="https://llvm.org/docs/TableGen/">
+                  TableGen Overview
+                </a>
+              </li>
+              <li>
+                <a href="https://llvm.org/docs/TableGen/BackEnds.html">
+                  TableGen BackEnds
+                </a>
+              </li>
+              <li>
+                <a href="https://llvm.org/docs/TableGen/ProgRef.html">
+                  TableGen Programmer’s Reference
+                </a>
+              </li>
+            </ul>
+          </section>
+          <section>
+            <h4>TableGen</h4>
+            <pre><code class="shell" data-trim>
+$ clang-tblgen clang/include/clang/Basic/Diagnostic.td \
+  -I clang/include/clang/Basic --gen-clang-diags-defs
+$ wc -l clang/include/clang/Basic/Diagnostic.td
+152 clang/include/clang/Basic/Diagnostic.td
+$ clang-tblgen clang/include/clang/Basic/Diagnostic.td \
+  -I clang/include/clang/Basic  --gen-clang-diags-defs | wc -l
+5380
+            </code></pre>
+            <p>Q: Which backend to run?</p>
+            <p>A: Check CMakeLists.txt in dir of .td.</p>
+          </section>
+        </section>
+        <section>
+          <h4>llvm-lit</h4>
+          <p><code>ninja check_all</code> to run all tests.</p>
+          <p class="fragment"><code>llvm-lit -vv &lt;test&gt;</code> to better understand failures.</p>
+          <p class="fragment">Break up tests with multiple RUN lines to understand regressions.</p>
+        </section>
+        <section>
+          <h4>SEMA tips</h4>
+          <ul>
+            <li class="fragment">Compile with <code>-Weverything</code>.</li>
+            <li class="fragment"><code>grep</code> for &quot;generic&quot; part of warning.</li>
+            <li class="fragment"><code>grep</code> for <code>def</code> from <code>.td</code> file.</li>
+            <li class="fragment">
+              <a href="https://www.youtube.com/watch?v=FNnKMSkaLkY">
+                My First Clang Warning - M. Baumgärtner & D. Gribenko
+              </a>
+            </li>
+          </ul>
         </section>
         <section>
           <section>
@@ -1253,22 +1334,21 @@ $ ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make CC=clang \
           </section>
           <section>
             <ol>
-              <li>Isolate compiler invocation</li>
-              <li>Confirm compile invocation</li>
-              <li>Create reproducer script</li>
-              <li>Generate preprocessed reproducer</li>
-              <li>Creduce it</li>
-              <li>Dump LLVM IR</li>
-              <li>llvm-reduce</li>
-              <li>Bugpoint (optional)</li>
+              <li>Isolate compiler invocation from build env.</li>
+              <li>Confirm compile invocation.</li>
+              <li>Create reproducer script.</li>
+              <li>Generate preprocessed reproducer.</li>
+              <li>creduce/cvise.</li>
+              <li>Minimize command line flags.</li>
+              <li>Dump LLVM IR or llvm-extract.</li>
+              <li>llvm-reduce/bugpoint.</li>
             </ol>
           </section>
           <section>
-              <h4>Isolate compiler invocation</h4>
+              <h4>Isolate compiler invocation from build env</h4>
               <pre><code class="shell" data-trim>
 $ ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- make CC=clang \
-  -j71 mm/kasan/quarantine.o \
-  V=1
+  -j71 mm/kasan/quarantine.o V=1
               </code></pre>
               <p>Also printed in the stack trace.</p>
           </section>
@@ -1286,7 +1366,7 @@ OUT=$(&lt;compiler invocation&gt; 2&gt;&amp;1)
 echo $OUT | grep "PatchableFunction::runOnMachineFunction"
             </code></pre>
             <ul>
-              <li>Writing reproucers a bit of an art.</li>
+              <li>Writing reproducers a bit of an art.</li>
               <li>Need to be specific for stack traces.</li>
               <li>
                 Repro needs to be directory independent, else creduce will
@@ -1331,6 +1411,11 @@ a() {
   while (b);
 }
             </code></pre>
+            <p>
+              Take a look at
+              <a href="https://github.com/marxin/cvise">cvise</a>
+              , for improved concurrency!
+            </p>
           </section>
           <section>
             <h4>Minimize command line flags</h4>
@@ -1342,15 +1427,19 @@ $ clang -O2 -ftrivial-auto-var-init=pattern -fpatchable-function-entry=2 -c quar
             </code></pre>
           </section>
           <section>
-            <h4>Dump LLVM IR</h4>
+            <h4>Dump LLVM IR / llvm-extract</h4>
             <pre><code class="shell" data-trim>
-$ clang -O2 -ftrivial-auto-var-init=pattern -fpatchable-function-entry=2 \
+$ clang -O2 -ftrivial-auto-var-init=pattern \
+  -fpatchable-function-entry=2 \
   -S -emit-llvm quarantine.i
 $ llc -O2 quarantine.ll
 # crashes in same frame
 $ wc -l quarantine.ll
 20 quarantine.ll
+
+$ llvm-extract --func=a -o a.ll quarantine.ll
             </code></pre>
+            <p>Won&apos;t be able to run creduce once converted to LLVM IR.</p>
           </section>
           <section>
             <h4>llvm-reduce</h4>
@@ -1381,7 +1470,7 @@ attributes #0 = { norecurse noreturn nounwind readnone uwtable "correctly-rounde
           <section>
             <h4>Bugpoint</h4>
             <ul>
-              <li>Prefer <code>llvm-reduce</code> to bugpoint.</li>
+              <li>Prefer <code>llvm-reduce</code> to bugpoint, though my experience has been that <code>llvm-reduce</code> crashes often for larger inputs.</li>
               <li><a href="http://blog.llvm.org/2015/11/reduce-your-testcases-with-bugpoint-and.html">
                 Reduce Your Testcases with Bugpoint and Custom Scripts
               </a></li>
@@ -1414,10 +1503,22 @@ attributes #0 = { "patchable-function-entry"="2" }
 
 !0 = !{!"Nick Desaulniers clang version 11.0.0 (git@github.com:llvm/llvm-project.git 67c608a9695496cfc9d3fdf9d0b12b554ac6b4df)"}
             </code></pre>
+            <p class="fragment">This can be cut down further manually; verify with <code>opt -verify</code>. Nice to have minimal test cases.</p>
           </section>
         </section>
         <section>
-          <h2>Thanks</h2>
+          <h2>More info</h2>
+          <ul>
+            <li><a href="https://lists.llvm.org/cgi-bin/mailman/listinfo">Mailing lists</a></li>
+            <li>IRC (irc.oftc.net #llvm)</li>
+            <li><a href="https://discord.gg/xS7Z362">Discord</a></li>
+            <li>Bugzilla (<a href="https://bugs.llvm.org/">bugs.llvm.org</a>)</li>
+            <li>/r/llvm (<a href="https://www.reddit.com/r/LLVM/">reddit.com/r/llvm</a>)</li>
+            <li>Blog (<a href="https://blog.llvm.org/">blog.llvm.org</a>)</li>
+            <li>LLVM Weekly (<a href="http://llvmweekly.org/">llvmweekly.org</a>)</li>
+            <li>YouTube (<a href="https://www.youtube.com/c/LLVMPROJ/videos">LLVM</a>, <a href="https://www.youtube.com/user/fosdemtalks/videos">FOSDEM</a>)
+          </ul>
+          <p class="fragment">The master has failed more times than the beginner has even tried.</p>
           <!-- -opt-bisect-limit=31 -->
         </section>
       </div>
